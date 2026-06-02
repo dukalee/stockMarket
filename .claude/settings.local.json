@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm create *)",
+      "PowerShell(Get-ChildItem \"C:\\\\claudework\\\\mockStockMarket\\\\src\" -Recurse | Where-Object { !$_.PSIsContainer } | Select-Object FullName | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\claudework\\\\mockStockMarket\\\\\", \"\"\\) })",
+      "Bash(Get-ChildItem -Path \"C:\\\\claudework\\\\mockStockMarket\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(node *)",
+      "Bash(Test-Path *)"
+    ]
+  }
+}

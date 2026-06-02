@@ -1,0 +1,51 @@
+import { ClipboardList } from 'lucide-react'
+import { usePortfolioStore } from '../../stores/portfolioStore'
+import { useMarketStore } from '../../stores/marketStore'
+
+const fmt = (n: number) => `₩${Math.round(n).toLocaleString('ko-KR')}`
+
+export default function TransactionHistory() {
+  const transactions = usePortfolioStore(s => s.transactions)
+  const stocks       = useMarketStore(s => s.stocks)
+  const stockMap     = Object.fromEntries(stocks.map(s => [s.id, s]))
+
+  if (transactions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-10">
+        <ClipboardList size={32} className="text-gray-300" />
+        <p className="text-gray-500 text-sm">거래 내역이 없습니다.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col divide-y divide-gray-200">
+      {transactions.map(tx => {
+        const isBuy     = tx.type === 'buy'
+        const stockName = stockMap[tx.stockId]?.name ?? tx.stockId
+
+        return (
+          <div key={tx.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-xs shrink-0">{tx.quarter}</span>
+                <span className="text-gray-900 font-semibold text-sm">{tx.stockId}</span>
+                <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+                  isBuy
+                    ? 'bg-red-100 text-red-600'
+                    : 'bg-blue-100 text-blue-600'
+                }`}>
+                  {isBuy ? '매수' : '매도'}
+                </span>
+              </div>
+              <span className="text-gray-400 text-xs truncate">
+                {stockName} · {tx.shares.toLocaleString('ko-KR')}주 · 단가 {fmt(tx.pricePerShare)}
+              </span>
+            </div>
+            <span className="text-gray-600 text-sm shrink-0 ml-4">{fmt(tx.totalValue)}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
