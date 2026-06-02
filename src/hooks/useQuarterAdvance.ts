@@ -11,7 +11,6 @@ export function useQuarterAdvance() {
   const nextQuarter = useGameStore(s => s.nextQuarter)
   const apiKey      = useGameStore(s => s.apiKey)
 
-  const stocks                   = useMarketStore(s => s.stocks)
   const currentNews              = useMarketStore(s => s.currentNews)
   const applyQuarterPriceChanges = useMarketStore(s => s.applyQuarterPriceChanges)
   const setNews                  = useMarketStore(s => s.setNews)

@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom'
 import { LogOut, Newspaper, RefreshCw } from 'lucide-react'
 import { useMarketStore } from '../stores/marketStore'
 import { useGameStore } from '../stores/gameStore'
-import { usePortfolioStore } from '../stores/portfolioStore'
 import { generateQuarterNews } from '../engines/newsEngine'
 import { useQuarterAdvance } from '../hooks/useQuarterAdvance'
 import AppShell from '../components/layout/AppShell'
@@ -34,8 +33,6 @@ export default function AdminDashboardPage() {
   const currentQuarter = useGameStore(s => s.currentQuarter)
   const apiKey         = useGameStore(s => s.apiKey)
   const isReady        = useGameStore(s => s.isReady())
-  const cash        = usePortfolioStore(s => s.cash)
-  const positions   = usePortfolioStore(s => s.positions)
   const lastFlipped        = useMarketStore(s => s.lastFlipped)
   const lastFlippedArticle = useMarketStore(s => s.lastFlippedArticle)
   const { advance, isAdvancing, advanceError } = useQuarterAdvance()
