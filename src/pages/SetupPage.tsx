@@ -28,7 +28,6 @@ export default function SetupPage() {
   const setNews                  = useMarketStore(s => s.setNews)
   const setNewsLoading           = useMarketStore(s => s.setNewsLoading)
   const setNewsLoadingProgress   = useMarketStore(s => s.setNewsLoadingProgress)
-  const newsLoadingProgress      = useMarketStore(s => s.newsLoadingProgress)
 
   const [userName,     setUserName]     = useState('')
   const [apiKey,       setApiKey]       = useState('')

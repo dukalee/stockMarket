@@ -325,7 +325,7 @@ export async function generateQuarterNews(
         isSurprise:      plan.isSurprise      ?? false,
         isInverted:      plan.isInverted      ?? false,
         priceImpact:     plan.priceImpact     ?? {},
-        targetType:      plan.targetType === 'global' ? 'global' : 'local',
+        targetType:      (plan.targetType === 'global' ? 'global' : 'local') as 'global' | 'local',
         targetSector:    plan.targetSector,
       }
     })

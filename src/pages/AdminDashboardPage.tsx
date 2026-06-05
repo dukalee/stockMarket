@@ -91,13 +91,6 @@ export default function AdminDashboardPage() {
     return { sector, rows, sectorImpact, globalArticles }
   })
 
-  const sentimentLabel = (s: string) =>
-    s === 'bullish' ? '긍정 ↑' : s === 'bearish' ? '부정 ↓' : '중립 →'
-  const sentimentCls = (s: string) =>
-    s === 'bullish'  ? 'bg-red-100 text-red-600'
-    : s === 'bearish' ? 'bg-blue-100 text-blue-600'
-    : 'bg-gray-100 text-gray-500'
-
   const rollLabel = (sentiment: string, strength: string) => {
     const dir = sentiment === 'bullish' ? 'pos' : sentiment === 'bearish' ? 'neg' : 'neutral'
     if (dir === 'neutral') return '중립'
