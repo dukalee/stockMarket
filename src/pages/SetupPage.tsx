@@ -169,21 +169,9 @@ export default function SetupPage() {
           className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-200 disabled:text-gray-400 text-white font-semibold transition-colors"
         >
           {starting ? (
-            <div className="flex flex-col gap-2 px-4 py-3">
-              <div className="flex gap-1">
-                {Array.from({ length: 8 }, (_, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 h-1.5 rounded-sm transition-colors duration-300 ${
-                      i < newsLoadingProgress ? 'bg-emerald-300' : 'bg-emerald-900'
-                    }`}
-                  />
-                ))}
-              </div>
-              <div className="flex items-center justify-center gap-2 text-sm">
-                <Loader2 size={14} className="animate-spin" />
-                loading...
-              </div>
+            <div className="flex items-center justify-center gap-2 px-4 py-3 text-sm">
+              <Loader2 size={14} className="animate-spin" />
+              loading...
             </div>
           ) : (
             <span className="block py-3">주식 거래 시작하기 →</span>

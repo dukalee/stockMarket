@@ -32,6 +32,9 @@ export interface NewsArticle {
   publishedAt: string
   affectedSymbols: string[]
   sentiment: Sentiment
+  strength: 'slight' | 'moderate' | 'strong'
+  isSurprise: boolean
+  isInverted: boolean
   priceImpact: Record<string, number>
   targetType: 'global' | 'local'
   targetSector?: string    // global일 때 영향 섹터

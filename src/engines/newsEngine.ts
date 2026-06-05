@@ -25,28 +25,25 @@ const PLANNER_SYSTEM_PROMPT = `당신은 가상 주식 시뮬레이션 게임의
 // Phase 2: journalist writer — one article per call
 const WRITER_SYSTEM_PROMPT = `당신은 세계적인 경제 전문 언론사의 기자입니다.
 
-주어진 사건을 기반으로 실제 금융 뉴스 기사처럼 작성하세요.
+주어진 사건과 [기사 스타일] 지시에 따라 실제 금융 뉴스 기사처럼 작성하세요.
 
-중요한 규칙:
+=== 공통 금지 사항 (모든 스타일 적용) ===
 
-기사 작성 시점에서는 미래 결과를 알 수 없습니다.
-주가 상승률, 하락률, 시가총액 변화 등 시장 결과를 직접 작성하지 마세요.
-투자자 반응을 묘사할 수는 있지만 수치화하지 마세요.
-"주가가 상승했다", "주가가 하락했다"와 같은 표현을 사용하지 마세요.
-기사만 읽고 방향성을 100% 확신할 수 없도록 작성하세요.
-긍정 요소와 부정 요소를 반드시 함께 포함하세요.
-기사 전체의 30~40%는 산업 및 거시경제 배경 설명으로 채우세요.
-기사 전체의 20~30%는 전문가 인터뷰나 업계 관계자 의견으로 채우세요.
-상반된 전문가 의견을 최소 2개 이상 포함하세요.
-투자 조언처럼 보이는 문장은 금지합니다.
-기사 제목만 보고 방향성이 드러나지 않도록 작성하세요.
-기사 내용은 600~1200자 분량으로 작성하세요.
-루머, 추정, 관측은 반드시 불확실성을 표현하세요.
-기사 말미에 향후 확인해야 할 변수들을 정리하세요.
-기사 자체가 특정 종목을 매수 또는 매도하도록 유도해서는 안 됩니다.
+"주가가 오를", "주가가 내릴", "상승 전망", "하락 전망" 등 주가 방향 예측 표현 금지
+주가·시가총액·수익률 등 시장 결과 수치 금지
+투자 매수·매도를 유도하는 문장 일체 금지
 
-주의:
-기사 성향은 기사 내부에서 직접 표현하지 말고, 긍정 요소와 부정 요소의 비중 조절을 통해 간접적으로만 반영하세요.`
+=== 수치·통계 필수 포함 (모든 스타일 적용) ===
+
+기사마다 아래 유형의 수치를 3개 이상 반드시 포함하세요:
+- 매출·영업이익·순이익 변화율 (예: "전년 동기 대비 매출 17.3% 감소")
+- 시장 규모·점유율 (예: "국내 시장 규모 4.2조원", "점유율 23%→19%")
+- 계약 금액·투자 규모 (예: "총 계약 규모 8,500억원")
+- 거시 지표 (예: "기준금리 0.25%p 인상", "재고 지수 전월 대비 +12%")
+수치는 구체적이고 그럴듯한 허구의 숫자를 사용하세요. 실제 공시 데이터가 아닌 게임용 픽션입니다.
+수치의 크기가 기사의 무게감을 전달해야 합니다.
+
+분량: 600~1200자, 단락은 \\n\\n으로 구분`
 
 function buildPlannerPrompt(year: number, quarter: number, stocks: Stock[]): string {
   const realYear  = 2025 + year
@@ -76,13 +73,31 @@ A. targetType 선택 (global 50% / local 50% 비율 유지)
 
 B. 이벤트 타입: earnings / contract / rumor / correction / policy / macro / accident 중 선택
 
-C. 주사위 굴리기 (1~6):
-   1: 약간 부정 → priceImpact  0 ~ -5%
-   2: 약간 긍정 → priceImpact  0 ~ +5%
-   3: 부정      → priceImpact -5 ~ -10%
-   4: 긍정      → priceImpact +5 ~ +10%
-   5: 매우 부정 → priceImpact -10 ~ -20%
-   6: 매우 긍정 → priceImpact +10 ~ +20%
+C. 강도 배정 — 8개 기사의 강도는 아래 구성을 반드시 지킨다:
+   - 기사 1: 약간 부정  → priceImpact  -5 ~ +5%   (sentiment: bearish, strength: slight)
+   - 기사 2: 부정       → priceImpact  -5 ~ -10%  (sentiment: bearish, strength: moderate)
+   - 기사 3: 매우 부정  → priceImpact -15 ~ -25%  (sentiment: bearish, strength: strong)
+   - 기사 4: 약간 긍정  → priceImpact  -5 ~ +5%   (sentiment: bullish, strength: slight)
+   - 기사 5: 긍정       → priceImpact  +5 ~ +10%  (sentiment: bullish, strength: moderate)
+   - 기사 6: 매우 긍정  → priceImpact +15 ~ +25%  (sentiment: bullish, strength: strong)
+   - 기사 7: 랜덤 (1~6 중 자유 선택, strength는 해당 강도에 맞게 배정)
+   - 기사 8: 랜덤 (1~6 중 자유 선택, strength는 해당 강도에 맞게 배정)
+   순서는 랜덤하게 섞어도 되지만 위 6가지 강도는 반드시 1개씩 포함되어야 한다.
+
+I. isSurprise — 8개 기사 중 정확히 2개를 surprise 기사로 지정한다 (isSurprise: true).
+   - surprise 기사는 헤드라인이 실제 priceImpact 방향과 반대 방향을 암시한다
+   - 본문을 끝까지 읽으면 진짜 방향이 드러나는 구조
+   - moderate 또는 strong 강도 기사를 대상으로 권장 (slight는 이미 모호하므로 제외 권장)
+   - 나머지 6개 기사는 isSurprise: false
+
+J. isInverted — isSurprise가 아닌 6개 기사 중 정확히 1개를 inverted 기사로 지정한다 (isInverted: true).
+   - 기사 본문·헤드라인은 sentiment 방향대로 정상 작성된다 (독자는 방향을 자연스럽게 읽음)
+   - 단, 실제 priceImpact는 반대 방향의 미미한 수치로 설정한다:
+     · bearish 기사 → priceImpact +1 ~ +5% (약간 긍정 효과)
+     · bullish 기사 → priceImpact -1 ~ -5% (약간 부정 효과)
+   - strength는 기존 배정 그대로 유지 (스타일 가이드는 apparent sentiment 기준)
+   - 나머지 5개 기사는 isInverted: false
+   - isSurprise: true인 기사에는 isInverted: false만 허용 (중복 지정 금지)
 
 D. companyName: 기사에서 다룰 허구의 한국 기업명 (실제 기업명 사용 금지)
    - local 기사: 해당 종목의 게임 내 이름 그대로 사용 가능 (예: SSEI → "사성전자")
@@ -113,6 +128,9 @@ H. priceImpact: 주사위 범위 내 소수점 1자리 실수값
       "industry": "산업군",
       "event": "구체적 사건 설명 (1~2문장)",
       "sentiment": "bullish | bearish | neutral",
+      "strength": "slight | moderate | strong",
+      "isSurprise": true or false,
+      "isInverted": true or false,
       "affectedSymbols": ["종목ID"],
       "priceImpact": { "종목ID": 수치 }
     }
@@ -131,6 +149,8 @@ function buildWriterPrompt(
   industry: string,
   event: string,
   sentiment: string,
+  strength: string,
+  isSurprise: boolean,
   year: number,
   quarter: number,
   reporterIndex: number,
@@ -139,18 +159,49 @@ function buildWriterPrompt(
   const dateRange    = QUARTER_DATE_RANGE[quarter]
   const sentimentKor = sentiment === 'bullish' ? '긍정' : sentiment === 'bearish' ? '부정' : '중립'
   const reporter     = KOREAN_REPORTER_NAMES[reporterIndex % KOREAN_REPORTER_NAMES.length]
+  const opposite     = sentimentKor === '긍정' ? '부정' : '긍정'
+
+  const styleGuide = isSurprise
+    ? `[기사 스타일: 반전 서프라이즈 ⚡]
+이 기사의 실제 의미는 ${sentimentKor}이지만, 헤드라인과 도입부는 ${opposite} 방향을 강하게 암시합니다.
+독자가 헤드라인만 읽으면 ${opposite} 뉴스로 오해하고, 끝까지 읽으면 "아, 사실은 ${sentimentKor}이었구나"를 깨닫는 구조입니다.
+
+구조:
+- 헤드라인: ${opposite} 방향을 암시하는 사건 팩트 (위기감·부정적 수치 등)
+- 부제목: 두 해석이 충돌하는 모호한 표현
+- 본문 도입 (첫 25~30%): ${opposite} 방향의 표면적 사실과 수치. 독자는 ${opposite} 기사라고 확신.
+- 본문 중반 전환 (한 단락): "다만", "그러나", "주목할 점은", "역설적으로"로 시작하는 반전 단락
+- 본문 후반 (나머지 50~60%): ${sentimentKor} 방향의 실질적 의미와 수치. 자세히 읽은 독자만 진짜 의미 파악.
+- 결론: ${sentimentKor} 방향으로 마무리하되, 불확실성 표현 포함`
+    : strength === 'strong'
+    ? `[기사 스타일: 단방향 명확]
+이 기사는 ${sentimentKor} 정보만 담습니다.
+반대 의견이나 모호한 표현 없이 ${sentimentKor}적 사실과 수치를 직접적으로 서술하세요.
+전문가 의견도 모두 ${sentimentKor} 방향이어야 합니다.
+결론을 명확히 제시하며 마무리하세요.`
+    : strength === 'moderate'
+    ? `[기사 스타일: 반전 후 수렴]
+기사 앞부분(처음 30~40%)은 ${opposite}적 배경과 우려로 시작하세요.
+중반부에서 반전 포인트를 두고, 후반부(60% 이후)는 ${sentimentKor} 방향으로 수렴하며 마무리하세요.
+독자가 읽다 보면 결국 ${sentimentKor}쪽이 우세하다고 느껴야 합니다.`
+    : `[기사 스타일: 최대 모호]
+긍정 요소와 부정 요소를 50:50으로 배분하세요.
+어떤 문장도 단독으로 방향성을 암시하면 안 됩니다.
+결론 없이 "향후 지켜봐야 한다", "시장의 반응은 엇갈린다"로 끝내세요.
+독자가 기사를 읽은 후에도 방향을 확신할 수 없어야 합니다.`
 
   return `[입력]
 
 기업명: ${companyName}
 산업군: ${industry}
 사건: ${event}
-기사 성향: ${sentimentKor}
+
+${styleGuide}
 
 다음 JSON 형식으로 반환하세요:
 {
-  "headline": "기사 제목 (방향성 없는 사건 팩트)",
-  "subheadline": "부제목 (상반된 해석 두 가지 병치)",
+  "headline": "기사 제목 (사건 팩트 중심, 주가 방향 예측 금지)",
+  "subheadline": "부제목",
   "body": "기사 본문 (600~1200자, \\n\\n으로 단락 구분)",
   "summary": "핵심 내용 1~2줄 요약",
   "author": "${reporter} 기자",
@@ -167,6 +218,9 @@ interface ArticlePlan {
   industry:        string
   event:           string
   sentiment:       'bullish' | 'bearish' | 'neutral'
+  strength:        'slight' | 'moderate' | 'strong'
+  isSurprise:      boolean
+  isInverted:      boolean
   affectedSymbols: string[]
   priceImpact:     Record<string, number>
 }
@@ -212,7 +266,7 @@ async function writeArticle(
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: WRITER_SYSTEM_PROMPT },
-      { role: 'user',   content: buildWriterPrompt(plan.companyName, plan.industry, plan.event, plan.sentiment, year, quarter, reporterIndex) },
+      { role: 'user',   content: buildWriterPrompt(plan.companyName, plan.industry, plan.event, plan.sentiment, plan.strength ?? 'slight', plan.isSurprise ?? false, year, quarter, reporterIndex) },
     ],
     temperature: 1.0,
     max_tokens: 2048,
@@ -245,32 +299,37 @@ export async function generateQuarterNews(
     plans = await planArticles(client, year, quarter, stocks)
   }
 
-  // Phase 2: write each article sequentially — progress fires after each completion
-  const articles: NewsArticle[] = []
-  for (const [i, plan] of plans.entries()) {
-    let written: WrittenArticle
-    try {
-      written = await writeArticle(client, plan, year, quarter, i)
-    } catch {
-      written = { headline: '제목 없음', subheadline: '', body: '', summary: '', author: '편집부', publishedAt: '' }
-    }
-    articles.push({
-      id:              `Y${year}Q${quarter}-${i}`,
-      quarter:         `YEAR${year}-Q${quarter}`,
-      headline:        written.headline,
-      subheadline:     written.subheadline,
-      body:            written.body,
-      summary:         written.summary,
-      author:          written.author,
-      publishedAt:     written.publishedAt,
-      affectedSymbols: plan.affectedSymbols ?? [],
-      sentiment:       plan.sentiment       ?? 'neutral',
-      priceImpact:     plan.priceImpact     ?? {},
-      targetType:      plan.targetType === 'global' ? 'global' : 'local',
-      targetSector:    plan.targetSector,
+  // Phase 2: write all articles in parallel — progress fires as each completes
+  let completedCount = 0
+  const articles = await Promise.all(
+    plans.map(async (plan, i) => {
+      let written: WrittenArticle
+      try {
+        written = await writeArticle(client, plan, year, quarter, i)
+      } catch {
+        written = { headline: '제목 없음', subheadline: '', body: '', summary: '', author: '편집부', publishedAt: '' }
+      }
+      onProgress?.(++completedCount)
+      return {
+        id:              `Y${year}Q${quarter}-${i}`,
+        quarter:         `YEAR${year}-Q${quarter}`,
+        headline:        written.headline,
+        subheadline:     written.subheadline,
+        body:            written.body,
+        summary:         written.summary,
+        author:          written.author,
+        publishedAt:     written.publishedAt,
+        affectedSymbols: plan.affectedSymbols ?? [],
+        sentiment:       plan.sentiment       ?? 'neutral',
+        strength:        plan.strength        ?? 'slight',
+        isSurprise:      plan.isSurprise      ?? false,
+        isInverted:      plan.isInverted      ?? false,
+        priceImpact:     plan.priceImpact     ?? {},
+        targetType:      plan.targetType === 'global' ? 'global' : 'local',
+        targetSector:    plan.targetSector,
+      }
     })
-    onProgress?.(i + 1)
-  }
+  )
 
   return articles
 }

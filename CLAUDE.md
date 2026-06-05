@@ -14,7 +14,7 @@
 | `src/utils/constants.ts` | 게임 상수값 확인 (초기 자본 ₩10,000,000, 분기 설정 등) |
 | `src/data/stocks.ts` | 종목 목록·초기 주가·섹터 확인 |
 | `src/engines/priceEngine.ts` | GBM 가격 계산 함수 (현재 미사용 — 턴제이므로 호출 안 함) |
-| `src/engines/eventEngine.ts` | 분기 진행 시 priceImpact 합산 + 반전(flip) 주사위 로직 |
+| `src/engines/eventEngine.ts` | 분기 진행 시 priceImpact 합산 + 반전(flip) 주사위 로직. NOISE_RANGE=10 |
 | `src/engines/newsEngine.ts` | gpt-4.1-mini 뉴스 생성 — 2단계(Plan+Write) 구조 |
 | `src/stores/gameStore.ts` | 게임 진행 상태 (year, quarter, phase, apiKey, adminAuth) |
 | `src/stores/marketStore.ts` | 종목·뉴스·가격 상태. `lastFlipped`, `lastFlippedArticleId`, `newsLoadingProgress`(0~8) 포함 |
@@ -33,7 +33,7 @@
 | `src/components/market/StockList.tsx` | 종목 사이드바 — 보유 종목 필터·미선택 시 SSEI 자동 선택 |
 | `src/components/market/StockRow.tsx` | 종목 행 — 한글명·원 단위 현재가·등락 (2줄 레이아웃) |
 | `src/components/market/StockDetail.tsx` | 종목 상세 — 한글명 메인, 심볼 서브 |
-| `src/components/market/PriceChart.tsx` | 분기별 캔들 차트 (시드 파동 보간, 상승=빨강·하락=파랑) |
+| `src/components/market/PriceChart.tsx` | 순수 SVG 캔들스틱 차트 — 분기당 100 미니캔들, 브라운 브릿지 보간, 거래량 바 |
 | `src/components/portfolio/HoldingsTable.tsx` | 보유 종목 테이블 — 행별 매수/매도 버튼 (→ `/trade` 이동) |
 | `src/components/trading/TradePanel.tsx` | 매수/매도 패널 — 당분기 매도 제한 없음 |
 | `src/App.tsx` | 라우팅 구조 확인 |
@@ -75,7 +75,7 @@ NavBar "Continue →" 클릭
 ### 분기 가격 변동 (`eventEngine.ts`)
 - 현재 분기 뉴스의 `priceImpact` 합산
 - **반전(flip)**: 기사 순서대로 1d6 — 1이 나오면 해당 기사 impact 부호 반전. 첫 발동 후 이후 기사는 정상 적용. 분기당 최대 1회
-- ±8% 균등 노이즈 추가
+- **±10% 균등 노이즈** 추가 (`NOISE_RANGE = 10`)
 - `applyQuarterPriceChanges` 에서 `openPrice = 이전currentPrice` 로 보존 → 등락 기준선
 
 ### 뉴스 생성 (`newsEngine.ts`) — 2단계 구조
@@ -83,32 +83,58 @@ NavBar "Continue →" 클릭
 
 **Phase 1 — Planning (1회 호출)**
 - `PLANNER_SYSTEM_PROMPT` 사용
-- 게임 메카닉 결정: `targetType`(global/local), `priceImpact`, `companyName`, `industry`, `event`, `sentiment`
-- 분기당 8개 이벤트 설계. 8개 미만 시 1회 재시도
+- 게임 메카닉 결정: `targetType`(global/local), `priceImpact`, `companyName`, `industry`, `event`, `sentiment`, `strength`, `isSurprise`
+- 분기당 정확히 8개 이벤트 설계. 8개 미만 시 1회 재시도
 - `max_tokens: 4096`
 
-**Phase 2 — Writing (8회 순차 호출)**
-- `WRITER_SYSTEM_PROMPT` 사용 (신문 기자 페르소나, 방향성 중립 규칙)
-- 기사별 `[입력] 기업명/산업군/사건/기사성향` 형식으로 호출
-- 기자명: `KOREAN_REPORTER_NAMES` 15명 목록에서 인덱스 순으로 배정 → 기사마다 다른 이름
+**Phase 2 — Writing (8회 병렬 호출 — Promise.all)**
+- `WRITER_SYSTEM_PROMPT` 사용 (공통 금지사항 + 수치 필수 포함)
+- 기사별 강도(`strength`)와 반전 여부(`isSurprise`)에 따라 다른 스타일 가이드 주입
+- 기자명: `KOREAN_REPORTER_NAMES` 15명 목록에서 인덱스 순으로 배정
 - 날짜: 분기 범위 내 서로 다른 날짜 지시
-- 기사 완성 시마다 `onProgress(i+1)` 호출 → 0~8 진행률 업데이트
+- 기사 완성 시마다 `onProgress(++completedCount)` 호출 → 0~8 진행률 (완료 순 비순차)
 - `max_tokens: 2048`
 
-`priceImpact`: global → 섹터 전체 종목, local → 1개 종목 (±0~20%)
+**기사 강도 배분 (분기당 고정 구성)**
+| 구성 | 강도 | priceImpact 범위 |
+|------|------|----------------|
+| 1개 | 약간 부정 (slight bearish) | -5 ~ +5% |
+| 1개 | 부정 (moderate bearish) | -5 ~ -10% |
+| 1개 | 매우 부정 (strong bearish) | -15 ~ -25% |
+| 1개 | 약간 긍정 (slight bullish) | -5 ~ +5% |
+| 1개 | 긍정 (moderate bullish) | +5 ~ +10% |
+| 1개 | 매우 긍정 (strong bullish) | +15 ~ +25% |
+| 2개 | 랜덤 | 위 6가지 중 자유 선택 |
+
+`priceImpact`: global → 섹터 전체 종목, local → 1개 종목
+
+**기사 작성 스타일 (strength별)**
+- `strong`: 단방향 명확 — 해당 방향 정보만, 전문가 의견도 동방향, 명확한 결론
+- `moderate`: 반전 후 수렴 — 앞 30~40% 반대 방향으로 시작, 후반 60%에서 본 방향으로 수렴
+- `slight`: 최대 모호 — 긍정·부정 50:50, 결론 없이 "지켜봐야 한다"로 마무리
+- **수치·통계 3개 이상 필수** (매출 변화율, 시장 규모, 계약 금액, 거시 지표 등)
+
+**반전 서프라이즈 기사 (`isSurprise: true`)**
+- 분기당 정확히 2개 지정 (moderate/strong 대상 권장)
+- 헤드라인 + 도입부: 실제 방향의 **반대** 방향 강하게 암시
+- 본문 중반 전환 단락 ("다만", "역설적으로"): 반전 포인트
+- 본문 후반: 진짜 방향 수치로 드러남 → 끝까지 읽은 독자만 파악
 
 ### 로딩 진행률
 - `newsLoadingProgress`: 0~8 (기사 완성 수) — 퍼센트가 아님
-- NavBar: 8칸 세그먼트 바 (기사 완성마다 1칸씩 점등)
-- SetupPage: 버튼 내 8칸 세그먼트 바
-- 버튼 텍스트: "loading..." (진행률 숫자 미표시)
+- NavBar/SetupPage: 8칸 세그먼트 바
+  - 완료된 칸: 초록 solid
+  - 로딩 중 미완료 칸: `animate-pulse` (병렬 생성이므로 완료 순서 비순차)
 
-### 차트 (`PriceChart.tsx`)
-- `priceHistory`의 `quarterLabel` 포인트만 필터링 → 분기당 캔들 1개
-- 분기 간 구간: `seededWave(from, to, 24steps, seed)` — 시드 기반 4중 조화 파동으로 결정론적 보간
-- 상승 구간 빨강(`#ef4444`), 하락 구간 파랑(`#3b82f6`)
-- 게임 시작가 마커(회색 원) + 수평 점선 기준선 표시
-- Q1 (아직 분기 진행 없음): "분기를 진행하면 차트가 표시됩니다" 메시지
+### 차트 (`PriceChart.tsx`) — 순수 SVG 캔들스틱
+- Recharts 제거, ResizeObserver 기반 순수 SVG 렌더링
+- **분기당 100개 미니캔들** (`STEPS = 100`)
+- **Brownian bridge 보간**: `stepVol = priceMid * 0.07 / sqrt(steps)` — 가격 레벨 기준 변동성, 조용한 분기도 자연스러운 등락 표현
+- 각 미니캔들: open/close = 연속 보간 포인트, high/low = seeded 노이즈 wick
+- 하단 18%: 거래량 바 (seeded 허구값, 상승=연한 빨강, 하락=연한 파랑)
+- 분기 경계: 수직 점선 구분선 + X축 라벨 (`Y1Q1` 등)
+- 호버 툴팁: 시가/종가/고가/저가/등락% 표시
+- Q1 미진행 시: "분기를 진행하면 차트가 표시됩니다" 메시지
 
 ### 포트폴리오 스냅샷 (`portfolioStore.ts`)
 - `prevQuarterPositions: Record<string, Position>` — 이전 분기 종료 시점 보유 종목 복사본
@@ -123,7 +149,19 @@ interface PricePoint {
   quarterLabel?: string  // "Y1Q1", "Y1Q2", ... — applyQuarterPriceChanges 시점에만 기록
 }
 ```
-`quarterLabel`이 있는 포인트만 차트에 표시. 없으면 단순 history 포인트.
+`quarterLabel`이 있는 포인트만 차트 분기 경계로 사용.
+
+### `NewsArticle` 주요 필드 (`types/index.ts`)
+```ts
+interface NewsArticle {
+  sentiment: 'bullish' | 'bearish' | 'neutral'
+  strength:  'slight' | 'moderate' | 'strong'   // 기사 강도
+  isSurprise: boolean                             // 반전 서프라이즈 기사 여부
+  priceImpact: Record<string, number>             // 종목별 % 영향
+  targetType:  'global' | 'local'
+  targetSector?: string
+}
+```
 
 ---
 
@@ -156,17 +194,12 @@ interface PricePoint {
 - 미발동: "위험 요소 미발동" 안내
 - 발동 시: 반전 기사 제목 + 영향 종목 칩 목록 (`심볼 한글명 원래% → 반전%`)
 
-**투자 조언** — 기사 합산 기준값 (±8% noise 미적용)
+**투자 조언** — 기사 합산 기준값 (±10% noise 미적용)
 1. 강세 분야: sectorImpact > 2% 섹터 + 대표 기사 헤드라인
 2. 약세 분야: sectorImpact < -2% 섹터 + 대표 기사 헤드라인
 3. 추천 종목 Top 5: 상승 예상 상위 5개 + 예상 변동률 + 근거 기사 헤드라인
 
 **전체 종목 예상 변동 순위** — 20개 전종목 (0.0% 포함)
-
-**분기 뉴스 종합** — 기사별:
-- 카테고리 배지 (`글로벌 · 섹터명` / `로컬 종목`)
-- 영향 종목 인라인 (`심볼 ±X.X%`)
-- 헤드라인 + summary (좌측 보더 라인 근거 형식)
 
 ### 섹터 탭 (기술/교육/금융/물류/게임)
 - 탭 버튼에 섹터 영향도 % 표시
@@ -174,7 +207,11 @@ interface PricePoint {
 - 종목 행: 로컬 기사만 표시, 우측 `전체+종목=합산` 분해
 
 ### 뉴스 탭
-- 헤드라인 + 감성 배지 (긍정↑/부정↓/중립→) + summary + 영향 종목 칩
+- 헤드라인 + 배지 + summary + 영향 종목 칩
+- **배지 구성** (왼쪽→오른쪽):
+  - `⚡ 반전` (노란색) — `isSurprise: true` 기사에만 표시
+  - 강도 배지 (`약간 부정` / `부정` / `매우 부정` / `약간 긍정` / `긍정` / `매우 긍정`) — 강도별 색 농도
+- 감성 배지(긍정↑/부정↓) 별도 표시 없음 (강도 배지와 중복이므로 제거)
 
 ---
 
@@ -209,7 +246,7 @@ interface PricePoint {
 - **종목 상세**: 한글명 대형 + 심볼 소형 서브텍스트
 - **등락 색상**: 상승 빨강, 하락 파랑 (한국 증권 관례)
 - **분기 표기**: `YEAR1 Q1`, `Y1Q1` (차트 라벨)
-- **뉴스 페이지**: priceImpact·감성 지표 사용자에게 일절 노출 금지
+- **뉴스 페이지**: priceImpact·감성 지표·isSurprise 여부 사용자에게 일절 노출 금지
 - **뉴스 페이지 배경**: 흰색 (white tone), NYT 스타일 레이아웃
 
 ---

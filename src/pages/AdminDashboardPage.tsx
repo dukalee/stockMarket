@@ -33,8 +33,6 @@ export default function AdminDashboardPage() {
   const currentQuarter = useGameStore(s => s.currentQuarter)
   const apiKey         = useGameStore(s => s.apiKey)
   const isReady        = useGameStore(s => s.isReady())
-  const lastFlipped        = useMarketStore(s => s.lastFlipped)
-  const lastFlippedArticle = useMarketStore(s => s.lastFlippedArticle)
   const { advance, isAdvancing, advanceError } = useQuarterAdvance()
 
   const [retryError, setRetryError] = useState<string | null>(null)
@@ -99,6 +97,29 @@ export default function AdminDashboardPage() {
     s === 'bullish'  ? 'bg-red-100 text-red-600'
     : s === 'bearish' ? 'bg-blue-100 text-blue-600'
     : 'bg-gray-100 text-gray-500'
+
+  const rollLabel = (sentiment: string, strength: string) => {
+    const dir = sentiment === 'bullish' ? 'pos' : sentiment === 'bearish' ? 'neg' : 'neutral'
+    if (dir === 'neutral') return '중립'
+    const map: Record<string, Record<string, string>> = {
+      neg: { slight: '약간 부정', moderate: '부정', strong: '매우 부정' },
+      pos: { slight: '약간 긍정', moderate: '긍정',  strong: '매우 긍정' },
+    }
+    return map[dir][strength] ?? '알 수 없음'
+  }
+  const rollCls = (sentiment: string, strength: string) => {
+    if (sentiment === 'bearish') {
+      if (strength === 'strong')   return 'bg-blue-700 text-white'
+      if (strength === 'moderate') return 'bg-blue-200 text-blue-800'
+      return 'bg-blue-50 text-blue-500 border border-blue-200'
+    }
+    if (sentiment === 'bullish') {
+      if (strength === 'strong')   return 'bg-red-600 text-white'
+      if (strength === 'moderate') return 'bg-red-200 text-red-800'
+      return 'bg-red-50 text-red-500 border border-red-200'
+    }
+    return 'bg-gray-100 text-gray-500'
+  }
 
   // 탭 목록 (영향 있는 섹터 + 뉴스)
   const allTabs = ['요약', ...SECTOR_ORDER, '뉴스']
@@ -211,75 +232,6 @@ export default function AdminDashboardPage() {
 
                 return (
                   <div className="flex flex-col gap-5">
-
-                    {/* 위험 요소 배너 */}
-                    {(lastFlipped && lastFlippedArticle
-                        ? (() => {
-                            const a = lastFlippedArticle
-                            const flippedEntries = Object.entries(a.priceImpact)
-                            return (
-                              <div className="rounded-xl border border-yellow-300 bg-yellow-50 overflow-hidden">
-                                {/* 헤더 */}
-                                <div className="flex items-center gap-2 px-4 py-2.5 bg-yellow-100 border-b border-yellow-300">
-                                  <span className="text-lg">⚠️</span>
-                                  <span className="text-yellow-800 font-bold text-sm">주가 상승/하락 반전 발동</span>
-                                  <span className="text-yellow-600 text-xs ml-auto">기사별 1/6 확률 · 분기당 최대 1회</span>
-                                </div>
-
-                                <div className="px-4 py-3 flex flex-col gap-3">
-                                  {/* ① 반전된 기사 */}
-                                  <div>
-                                    <p className="text-yellow-700 text-xs font-semibold uppercase tracking-wide mb-1">① 반전된 기사</p>
-                                    <div className="bg-white border border-yellow-200 rounded-lg px-3 py-2">
-                                      <p className="text-gray-800 text-sm font-semibold leading-snug">{a.headline}</p>
-                                      {a.subheadline && (
-                                        <p className="text-gray-500 text-xs mt-0.5 leading-snug">{a.subheadline}</p>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {/* ② 영향 받는 종목 */}
-                                  {flippedEntries.length > 0 && (
-                                    <div>
-                                      <p className="text-yellow-700 text-xs font-semibold uppercase tracking-wide mb-1">② 영향 종목 — 방향 반전</p>
-                                      <div className="flex flex-col gap-1">
-                                        {flippedEntries.map(([symbol, orig]) => {
-                                          const reversed = -orig
-                                          const st = stocks.find(s => s.id === symbol)
-                                          return (
-                                            <div key={symbol} className="bg-white border border-yellow-200 rounded-lg px-3 py-2 flex items-center justify-between">
-                                              <div className="flex items-center gap-2">
-                                                <span className="text-emerald-600 font-bold text-sm">{symbol}</span>
-                                                {st && <span className="text-gray-600 text-xs">{st.name}</span>}
-                                                {st && <span className="text-gray-400 text-xs">{st.sector}</span>}
-                                              </div>
-                                              <div className="flex items-center gap-2 text-xs">
-                                                <span className={`${orig >= 0 ? 'text-red-400' : 'text-blue-400'} line-through`}>
-                                                  {orig >= 0 ? '+' : ''}{orig.toFixed(1)}%
-                                                </span>
-                                                <span className="text-gray-400">→</span>
-                                                <span className={`font-bold text-sm ${reversed >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
-                                                  {reversed >= 0 ? '+' : ''}{reversed.toFixed(1)}%
-                                                </span>
-                                              </div>
-                                            </div>
-                                          )
-                                        })}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )
-                          })()
-                        : (
-                          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-gray-500 text-sm">
-                            <span>🎲</span>
-                            <span className="font-medium">주가 상승/하락 반전 미발동</span>
-                            <span className="text-xs text-gray-400 ml-auto">전 기사 정상 적용</span>
-                          </div>
-                        )
-                    )}
 
                     {/* 투자 조언 — 3열 컴팩트 */}
                     <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -481,9 +433,21 @@ export default function AdminDashboardPage() {
                       <div key={article.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5">
                         <div className="flex items-start gap-3 flex-wrap">
                           <span className="text-gray-700 text-sm font-medium flex-1 min-w-0">{article.headline}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded font-medium shrink-0 ${sentimentCls(article.sentiment)}`}>
-                            {sentimentLabel(article.sentiment)}
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {article.isSurprise && (
+                              <span className="text-xs px-2 py-0.5 rounded font-bold bg-yellow-400 text-yellow-900">
+                                ⚡ 반전
+                              </span>
+                            )}
+                            {article.isInverted && (
+                              <span className="text-xs px-2 py-0.5 rounded font-bold bg-orange-500 text-white">
+                                ↕ 역행
+                              </span>
+                            )}
+                            <span className={`text-xs px-2 py-0.5 rounded font-semibold ${rollCls(article.sentiment, article.strength)}`}>
+                              {rollLabel(article.sentiment, article.strength)}
+                            </span>
+                          </div>
                         </div>
                         {article.summary && (
                           <p className="text-gray-500 text-xs leading-relaxed border-l-2 border-gray-300 pl-3">

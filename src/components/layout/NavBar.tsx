@@ -20,7 +20,6 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
   const currentQuarter = useGameStore(s => s.currentQuarter)
   const phase          = useGameStore(s => s.phase)
   const adminAuth      = useGameStore(s => s.adminAuth)
-  const progress       = useMarketStore(s => s.newsLoadingProgress)
   const stocks         = useMarketStore(s => s.stocks)
   const transactions           = usePortfolioStore(s => s.transactions)
   const positions              = usePortfolioStore(s => s.positions)
@@ -77,18 +76,7 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
   return (
     <>
       <header className="bg-white border-b border-gray-200 shrink-0">
-        {isAdvancing && (
-          <div className="flex gap-0.5 px-6 py-1 bg-white">
-            {Array.from({ length: 8 }, (_, i) => (
-              <div
-                key={i}
-                className={`flex-1 h-1 rounded-sm transition-colors duration-300 ${
-                  i < progress ? 'bg-emerald-500' : 'bg-gray-200'
-                }`}
-              />
-            ))}
-          </div>
-        )}
+
         {advanceError && (
           <div className="flex items-center gap-2 px-6 py-1.5 bg-red-50 border-b border-red-300 text-red-600 text-xs">
             <AlertTriangle size={12} />

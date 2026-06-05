@@ -1,6 +1,6 @@
 import type { NewsArticle } from '../types'
 
-const NOISE_RANGE = 8
+const NOISE_RANGE = 10
 
 function uniformNoise(range: number): number {
   return (Math.random() * 2 - 1) * range
