@@ -23,7 +23,7 @@ export default function PortfolioSummary() {
   const isPos      = pnl >= 0
 
   return (
-    <div className="grid grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 border-y-2 border-ink bg-paper-card divide-x divide-rule">
       <Card
         label="총 자산"
         value={fmt(totalAsset)}
@@ -50,16 +50,16 @@ function Card({ label, value, sub, valueColor, subColor }: {
   valueColor?: 'red' | 'blue'
   subColor?: 'red' | 'blue'
 }) {
-  const vc = valueColor === 'red'  ? 'text-red-600'
-           : valueColor === 'blue' ? 'text-blue-600'
-           : 'text-gray-900'
-  const sc = subColor === 'red'  ? 'text-red-600'
-           : subColor === 'blue' ? 'text-blue-600'
-           : 'text-gray-500'
+  const vc = valueColor === 'red'  ? 'text-up'
+           : valueColor === 'blue' ? 'text-down'
+           : 'text-ink'
+  const sc = subColor === 'red'  ? 'text-up'
+           : subColor === 'blue' ? 'text-down'
+           : 'text-mute'
   return (
-    <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 flex flex-col gap-2">
-      <span className="text-gray-500 text-xs">{label}</span>
-      <span className={`text-xl font-bold ${vc}`}>{value}</span>
+    <div className="px-5 py-4 flex flex-col gap-1">
+      <span className="text-mute text-sm">{label}</span>
+      <span className={`font-serif font-black text-2xl ${vc}`}>{value}</span>
       {sub && <span className={`text-sm ${sc}`}>{sub}</span>}
     </div>
   )

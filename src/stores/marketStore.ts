@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { Stock, NewsArticle } from '../types'
 import { buildInitialStocks } from '../data/stocks'
 import { MAX_HISTORY_POINTS } from '../utils/constants'
@@ -19,10 +20,10 @@ interface MarketState {
   setNewsLoadingProgress: (n: number) => void
   setDiceResult: (flipped: boolean, article: NewsArticle | null) => void
   selectStock: (id: string) => void
-  resetMarket: () => void
+  resetMarket: (seed?: string) => void
 }
 
-export const useMarketStore = create<MarketState>((set) => ({
+export const useMarketStore = create<MarketState>()(persist((set) => ({
   stocks: buildInitialStocks(),
   currentNews: [],
   newsLoading: false,
@@ -72,5 +73,15 @@ export const useMarketStore = create<MarketState>((set) => ({
   setNewsLoading:         (v)    => set({ newsLoading: v }),
   setNewsLoadingProgress: (n)    => set({ newsLoadingProgress: n }),
   selectStock:            (id)   => set({ selectedStockId: id }),
-  resetMarket:            ()     => set({ stocks: buildInitialStocks(), currentNews: [], selectedStockId: null }),
+  resetMarket:            (seed) => set({ stocks: buildInitialStocks(seed), currentNews: [], selectedStockId: null, lastFlipped: false, lastFlippedArticle: null }),
+}), {
+  name: 'shiftstocks-market',
+  version: 1,
+  partialize: (s) => ({
+    stocks: s.stocks,
+    currentNews: s.currentNews,
+    selectedStockId: s.selectedStockId,
+    lastFlipped: s.lastFlipped,
+    lastFlippedArticle: s.lastFlippedArticle,
+  }),
 }))

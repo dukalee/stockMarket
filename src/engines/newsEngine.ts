@@ -2,11 +2,11 @@ import OpenAI from 'openai'
 import type { NewsArticle, CounterArticle, Stock } from '../types'
 
 const SECTORS: Record<string, string[]> = {
-  '기술': ['SSEI', 'MRCE', 'CHOC', 'SKYH', 'GLES'],
-  '교육': ['MINC', 'DKCD', 'SGCP', 'CRZU'],
-  '금융': ['DRBN', 'SSSN', 'NNBK', 'GKMN'],
+  '기술': ['SSEI', 'CHOC', 'SKYH'],
+  '교육': ['MINC', 'DKCD', 'CRZU'],
+  '금융': ['DRBN', 'SSSN', 'NNBK'],
   '물류': ['CPNG', 'NVRL', 'CHMK'],
-  '게임': ['NEXT', 'MKSF', 'OBSD', 'GRUP'],
+  '게임': ['NEXT', 'MKSF', 'OBSD'],
 }
 
 const QUARTER_DATE_RANGE: Record<number, string> = {

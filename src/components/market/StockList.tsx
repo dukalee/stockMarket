@@ -39,30 +39,35 @@ export default function StockList() {
     : stocks.filter(s => s.sector === filter)
 
   return (
-    <aside className="w-56 bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden shrink-0">
-      {/* 섹터 필터 */}
-      <div className="p-3 border-b border-gray-200">
+    <aside className="w-72 bg-paper border-r border-ink flex flex-col overflow-hidden shrink-0">
+      {/* 제목 + 섹터 필터 */}
+      <div className="px-4 pt-4 pb-3 border-b-2 border-ink flex items-center justify-between gap-3">
+        <h2 className="font-serif font-black text-xl">시세표</h2>
         <div className="relative">
           <select
             value={filter}
             onChange={e => setFilter(e.target.value as Filter)}
-            className="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-sm text-gray-900 appearance-none focus:outline-none focus:border-emerald-500"
+            aria-label="종목 필터"
+            className="bg-transparent border border-ink px-3 pr-8 h-9 text-sm text-ink appearance-none"
           >
             {FILTERS.map(f => <option key={f}>{f}</option>)}
           </select>
-          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-ink pointer-events-none" />
         </div>
       </div>
 
       {/* 헤더 */}
-      <div className="px-3 py-2 flex items-center gap-1.5 text-xs text-gray-400 border-b border-gray-200">
+      <div className="px-3 py-2 flex items-center gap-2 text-xs text-mute border-b border-ink">
         <span className="flex-1">종목명</span>
         <span>현재가</span>
-        <span className="w-12 text-right">등락</span>
+        <span className="w-14 text-right">등락</span>
       </div>
 
       {/* 목록 */}
       <div className="flex-1 overflow-y-auto">
+        {filtered.length === 0 && (
+          <p className="px-4 py-6 text-sm text-mute">보유한 종목이 없습니다. 필터를 전체로 바꿔 보세요.</p>
+        )}
         {filtered.map(stock => (
           <StockRow
             key={stock.id}

@@ -1,4 +1,3 @@
-import { TrendingUp, TrendingDown, PackageOpen } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { usePortfolioStore } from '../../stores/portfolioStore'
 import { useMarketStore } from '../../stores/marketStore'
@@ -22,58 +21,62 @@ export default function HoldingsTable() {
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 text-center py-10">
-        <PackageOpen size={32} className="text-gray-300" />
-        <p className="text-gray-500 text-sm">아직 보유 중인 종목이 없습니다.</p>
-        <p className="text-gray-400 text-xs">거래 화면에서 첫 투자를 시작해보세요.</p>
+        <p className="text-ink-soft text-sm">아직 보유 중인 종목이 없습니다.</p>
+        <p className="text-mute text-sm">거래 화면에서 첫 투자를 시작해보세요.</p>
       </div>
     )
   }
 
   return (
-    <table className="w-full text-sm">
+    <div className="overflow-x-auto">
+    <table className="w-full text-sm min-w-[600px]">
       <thead>
-        <tr className="text-gray-400 text-xs border-b border-gray-200">
-          <th className="text-left pb-2 font-medium">심볼</th>
-          <th className="text-left pb-2 font-medium">기업명</th>
-          <th className="text-right pb-2 font-medium">보유</th>
-          <th className="text-right pb-2 font-medium">평가손익</th>
+        <tr className="text-mute text-sm border-b-2 border-ink">
+          <th className="text-left pb-2 font-medium w-full">종목</th>
+          <th className="text-right pb-2 pl-6 font-medium whitespace-nowrap">보유</th>
+          <th className="text-right pb-2 pl-6 font-medium whitespace-nowrap">매수 시 1주당</th>
+          <th className="text-right pb-2 pl-6 font-medium whitespace-nowrap">현재 1주당</th>
+          <th className="text-right pb-2 pl-6 font-medium whitespace-nowrap">평가손익</th>
           <th className="pb-2" />
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-200">
+      <tbody>
         {rows.map(pos => {
           const stock    = stockMap[pos.stockId]
           const curPrice = stock?.currentPrice ?? pos.averageCost
           const pnlPct   = ((curPrice - pos.averageCost) / pos.averageCost) * 100
           const isPos    = pnlPct >= 0
+          // 평가손익 금액은 보유 수량 전체 기준 (1주당 차이 x 수량)
+          const pnlAmount = (curPrice - pos.averageCost) * pos.shares
 
           return (
-            <tr key={pos.stockId} className="hover:bg-gray-100 transition-colors">
-              <td className="py-3 text-emerald-600 font-semibold">{pos.stockId}</td>
-              <td className="py-3 text-gray-600">
-                <div>{stock?.name ?? pos.stockId}</div>
-                <div className="text-gray-400 text-xs">
-                  {fmt(pos.averageCost)} → {fmt(curPrice)}
-                </div>
+            <tr key={pos.stockId} className="border-b border-rule hover:bg-paper-deep transition-colors">
+              <td className="py-3 text-ink-soft">
+                <div className="text-ink font-bold">{stock?.name ?? pos.stockId}{stock && <span className="ml-1.5 text-[11px] font-normal text-mute/70">{stock.sector}</span>}</div>
               </td>
-              <td className="py-3 text-right text-gray-600">{pos.shares}주</td>
-              <td className={`py-3 text-right font-semibold ${pnlPct > 0 ? 'text-red-600' : pnlPct < 0 ? 'text-blue-600' : 'text-gray-900'}`}>
+              <td className="py-3 pl-6 text-right text-ink-soft tabular-nums whitespace-nowrap">{pos.shares}주</td>
+              <td className="py-3 pl-6 text-right text-ink-soft tabular-nums whitespace-nowrap">{fmt(pos.averageCost)}</td>
+              <td className="py-3 pl-6 text-right text-ink font-bold tabular-nums whitespace-nowrap">{fmt(curPrice)}</td>
+              <td className={`py-3 pl-6 text-right font-bold tabular-nums whitespace-nowrap ${pnlPct > 0 ? 'text-up' : pnlPct < 0 ? 'text-down' : 'text-ink'}`}>
                 <span className="inline-flex items-center gap-1 justify-end">
-                  {isPos ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                  {isPos ? '▲' : '▼'}
                   {fmtPct(pnlPct)}
                 </span>
+                <div className="text-xs font-medium">
+                  {pnlAmount >= 0 ? '+' : '-'}{fmt(Math.abs(pnlAmount))}
+                </div>
               </td>
-              <td className="py-3 pl-3">
-                <div className="flex items-center gap-1">
+              <td className="py-3 pl-6">
+                <div className="flex items-center justify-end gap-1">
                   <button
                     onClick={() => goTrade(pos.stockId)}
-                    className="px-2 py-1 text-xs rounded bg-red-50 border border-red-300 text-red-600 hover:bg-red-100 transition-colors"
+                    className="px-3 min-h-10 text-sm font-bold bg-up text-white hover:brightness-110 transition"
                   >
                     매수
                   </button>
                   <button
                     onClick={() => goTrade(pos.stockId)}
-                    className="px-2 py-1 text-xs rounded bg-blue-50 border border-blue-300 text-blue-600 hover:bg-blue-100 transition-colors"
+                    className="px-3 min-h-10 text-sm font-bold bg-down text-white hover:brightness-110 transition"
                   >
                     매도
                   </button>
@@ -84,5 +87,6 @@ export default function HoldingsTable() {
         })}
       </tbody>
     </table>
+    </div>
   )
 }

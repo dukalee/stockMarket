@@ -7,7 +7,7 @@ interface Props {
 }
 
 const pctChg = (cur: number, open: number) => ((cur - open) / open) * 100
-const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
+const fmtPct = (n: number) => `${n > 0 ? '▲' : n < 0 ? '▼' : '–'}${Math.abs(n).toFixed(1)}`
 
 export default function StockRow({ stock, isSelected, onClick }: Props) {
   const pct          = pctChg(stock.currentPrice, stock.openPrice)
@@ -16,16 +16,18 @@ export default function StockRow({ stock, isSelected, onClick }: Props) {
   return (
     <button
       onClick={onClick}
-      className={`w-full px-3 py-2.5 flex items-center gap-1.5 text-xs transition-colors ${
-        isSelected ? 'bg-gray-200' : 'hover:bg-gray-100'
+      aria-pressed={isSelected}
+      className={`w-full px-3 py-3 flex items-baseline gap-2 text-sm border-b border-rule transition-colors ${
+        isSelected ? 'bg-paper-deep' : 'hover:bg-paper-deep/60'
       }`}
     >
-      <span className="flex-1 min-w-0 truncate text-emerald-600 font-semibold text-left">
+      <span className={`flex-1 min-w-0 truncate text-left text-ink ${isSelected ? 'font-bold' : 'font-medium'}`}>
         {stock.name}
+        <span className="ml-1.5 text-[11px] font-normal text-mute/70">{stock.sector}</span>
       </span>
-      <span className="shrink-0 text-gray-600">{displayPrice}</span>
-      <span className={`shrink-0 font-medium w-12 text-right ${
-        pct > 0 ? 'text-red-600' : pct < 0 ? 'text-blue-600' : 'text-gray-900'
+      <span className="shrink-0 text-ink-soft">{displayPrice}</span>
+      <span className={`shrink-0 font-bold w-14 text-right ${
+        pct > 0 ? 'text-up' : pct < 0 ? 'text-down' : 'text-mute'
       }`}>
         {fmtPct(pct)}
       </span>

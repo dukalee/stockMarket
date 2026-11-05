@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import { usePortfolioStore } from '../../stores/portfolioStore'
 import { useMarketStore } from '../../stores/marketStore'
 import type { Transaction } from '../../types'
@@ -50,7 +49,7 @@ export default function QuarterlyBreakdown() {
   if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-3 py-10 text-center">
-        <p className="text-gray-400 text-sm">아직 거래 내역이 없습니다.</p>
+        <p className="text-ink-soft text-sm">아직 거래 내역이 없습니다.</p>
       </div>
     )
   }
@@ -60,9 +59,9 @@ export default function QuarterlyBreakdown() {
 
       {/* 미실현 손익 요약 */}
       {Object.keys(positions).length > 0 && (
-        <div className="bg-gray-100 rounded-lg px-4 py-3 flex justify-between items-center text-sm">
-          <span className="text-gray-500">현재 미실현 손익</span>
-          <span className={`font-semibold ${unrealizedPnL >= 0 ? 'text-red-600' : 'text-blue-600'}`}>
+        <div className="border-y-2 border-ink px-1 py-3 flex justify-between items-center text-sm">
+          <span className="text-mute">현재 미실현 손익</span>
+          <span className={`font-bold ${unrealizedPnL >= 0 ? 'text-up' : 'text-down'}`}>
             {fmt(unrealizedPnL)}
             <span className="text-xs ml-1.5 opacity-80">({fmtPct(unrealizedPct * 100)})</span>
           </span>
@@ -88,25 +87,25 @@ function QuarterAccordion({
   const isProfit = netCashFlow >= 0
 
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-ink">
       {/* 분기 헤더 */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-100 hover:bg-gray-200 transition-colors"
+        className="w-full flex items-center justify-between px-4 min-h-10 py-2 bg-paper-deep hover:brightness-95 transition"
       >
         <div className="flex items-center gap-2">
-          {open ? <ChevronDown size={14} className="text-gray-500" /> : <ChevronRight size={14} className="text-gray-500" />}
-          <span className="text-gray-700 font-semibold text-sm">{quarter}</span>
-          <span className="text-gray-400 text-xs">{transactions.length}건</span>
+          <span className="text-ink text-xs">{open ? '▼' : '▶'}</span>
+          <span className="text-ink font-serif font-black text-sm">{quarter}</span>
+          <span className="text-mute text-xs">{transactions.length}건</span>
         </div>
-        <div className="flex items-center gap-4 text-xs">
-          <span className="text-gray-400">
-            매수 <span className="text-red-600">{fmt(totalBought)}</span>
+        <div className="flex flex-wrap items-center justify-end gap-x-4 text-xs">
+          <span className="text-mute">
+            매수 <span className="text-up">{fmt(totalBought)}</span>
           </span>
-          <span className="text-gray-400">
-            매도 <span className="text-blue-600">{fmt(totalSold)}</span>
+          <span className="text-mute">
+            매도 <span className="text-down">{fmt(totalSold)}</span>
           </span>
-          <span className={`font-semibold ${isProfit ? 'text-red-600' : 'text-blue-600'}`}>
+          <span className={`font-bold ${isProfit ? 'text-up' : 'text-down'}`}>
             순 {netCashFlow >= 0 ? '+' : ''}{fmt(netCashFlow)}
           </span>
         </div>
@@ -114,24 +113,24 @@ function QuarterAccordion({
 
       {/* 거래 목록 */}
       {open && (
-        <div className="divide-y divide-gray-200">
+        <div>
           {transactions.map(tx => {
             const isBuy = tx.type === 'buy'
             const name  = stockMap[tx.stockId]?.name ?? tx.stockId
             return (
-              <div key={tx.id} className="flex items-center justify-between px-4 py-2.5 text-xs">
+              <div key={tx.id} className="flex items-center justify-between px-4 py-2.5 text-xs border-t border-rule">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className={`px-1.5 py-0.5 rounded shrink-0 ${
-                    isBuy ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'
+                  <span className={`px-1.5 py-0.5 font-bold text-white shrink-0 ${
+                    isBuy ? 'bg-up' : 'bg-down'
                   }`}>
                     {isBuy ? '매수' : '매도'}
                   </span>
-                  <span className="text-gray-900 font-semibold">{tx.stockId}</span>
-                  <span className="text-gray-400 truncate">{name}</span>
+                  <span className="text-ink font-bold">{tx.stockId}</span>
+                  <span className="text-mute truncate">{name}</span>
                 </div>
-                <div className="flex items-center gap-4 shrink-0 text-gray-500">
+                <div className="flex items-center gap-4 shrink-0 text-ink-soft">
                   <span>{tx.shares.toLocaleString('ko-KR')}주 × {fmt(tx.pricePerShare)}</span>
-                  <span className={`font-semibold w-28 text-right ${isBuy ? 'text-red-600' : 'text-blue-600'}`}>
+                  <span className={`font-bold w-28 text-right tabular-nums ${isBuy ? 'text-up' : 'text-down'}`}>
                     {isBuy ? '-' : '+'}{fmt(tx.totalValue)}
                   </span>
                 </div>

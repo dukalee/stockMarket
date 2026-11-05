@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { LogOut, Newspaper, RefreshCw } from 'lucide-react'
 import { useMarketStore } from '../stores/marketStore'
 import { useGameStore } from '../stores/gameStore'
-import { generateQuarterNews } from '../engines/newsEngine'
+import { generateQuarterNews } from '../engines/staticNewsEngine'
 import { useQuarterAdvance } from '../hooks/useQuarterAdvance'
 import AppShell from '../components/layout/AppShell'
 import { useState } from 'react'
@@ -10,14 +10,14 @@ import { useState } from 'react'
 const fmtPct = (n: number) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`
 
 function pctColor(n: number) {
-  if (n > 0) return 'text-red-600'
-  if (n < 0) return 'text-blue-600'
-  return 'text-gray-900'
+  if (n > 0) return 'text-up'
+  if (n < 0) return 'text-down'
+  return 'text-ink'
 }
 function pctColorSub(n: number) {
-  if (n > 0) return 'text-red-600'
-  if (n < 0) return 'text-blue-600'
-  return 'text-gray-400'
+  if (n > 0) return 'text-up'
+  if (n < 0) return 'text-down'
+  return 'text-mute'
 }
 
 const SECTOR_ORDER = ['기술', '교육', '금융', '물류', '게임']
@@ -31,7 +31,6 @@ export default function AdminDashboardPage() {
   const setNewsLoading = useMarketStore(s => s.setNewsLoading)
   const currentYear    = useGameStore(s => s.currentYear)
   const currentQuarter = useGameStore(s => s.currentQuarter)
-  const apiKey         = useGameStore(s => s.apiKey)
   const isReady        = useGameStore(s => s.isReady())
   const { advance, isAdvancing, advanceError } = useQuarterAdvance()
 
@@ -39,11 +38,10 @@ export default function AdminDashboardPage() {
   const [activeTab,  setActiveTab]  = useState<string>('요약')
 
   const handleRetry = async () => {
-    if (!apiKey) return
     setRetryError(null)
     setNewsLoading(true)
     try {
-      const news = await generateQuarterNews(apiKey, currentYear, currentQuarter, stocks)
+      const news = await generateQuarterNews(currentYear, currentQuarter, stocks)
       setNews(news)
     } catch (err) {
       setRetryError(err instanceof Error ? err.message : '뉴스 생성에 실패했습니다.')
@@ -102,16 +100,16 @@ export default function AdminDashboardPage() {
   }
   const rollCls = (sentiment: string, strength: string) => {
     if (sentiment === 'bearish') {
-      if (strength === 'strong')   return 'bg-blue-700 text-white'
-      if (strength === 'moderate') return 'bg-blue-200 text-blue-800'
-      return 'bg-blue-50 text-blue-500 border border-blue-200'
+      if (strength === 'strong')   return 'bg-down text-white'
+      if (strength === 'moderate') return 'bg-down/20 text-down'
+      return 'border border-down text-down'
     }
     if (sentiment === 'bullish') {
-      if (strength === 'strong')   return 'bg-red-600 text-white'
-      if (strength === 'moderate') return 'bg-red-200 text-red-800'
-      return 'bg-red-50 text-red-500 border border-red-200'
+      if (strength === 'strong')   return 'bg-up text-white'
+      if (strength === 'moderate') return 'bg-up/20 text-up'
+      return 'border border-up text-up'
     }
-    return 'bg-gray-100 text-gray-500'
+    return 'border border-rule text-mute'
   }
 
   // 탭 목록 (영향 있는 섹터 + 뉴스)
@@ -123,13 +121,13 @@ export default function AdminDashboardPage() {
       <div className="h-full flex flex-col">
 
         {/* 헤더 */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-3 shrink-0">
-          <span className="text-gray-600 font-semibold text-sm">
+        <div className="flex items-center justify-between border-b border-rule px-6 py-3 shrink-0">
+          <span className="text-ink-soft font-semibold text-sm">
             🔒 Admin · YEAR {currentYear} Q{currentQuarter}
           </span>
           <button
             onClick={() => { useGameStore.getState().setAdminAuth(false); navigate('/admin') }}
-            className="flex items-center gap-2 text-gray-400 hover:text-gray-900 text-sm transition-colors"
+            className="flex items-center gap-2 text-mute hover:text-ink text-sm transition-colors"
           >
             <LogOut size={14} />
             로그아웃
@@ -141,25 +139,25 @@ export default function AdminDashboardPage() {
           <div className="flex-1 flex flex-col items-center justify-center gap-4">
             {!isReady && (
               <>
-                <Newspaper size={40} className="text-gray-300" />
-                <p className="text-gray-500 text-sm">게임을 먼저 시작해주세요.</p>
-                <button onClick={() => navigate('/setup')} className="text-emerald-600 text-sm hover:text-emerald-500 transition-colors">
+                <Newspaper size={40} className="text-rule" />
+                <p className="text-mute text-sm">게임을 먼저 시작해주세요.</p>
+                <button onClick={() => navigate('/setup')} className="min-h-10 px-4 border border-ink bg-ink text-paper text-sm font-bold">
                   Setup으로 이동 →
                 </button>
               </>
             )}
             {isReady && newsLoading && (
               <>
-                <RefreshCw size={32} className="animate-spin text-emerald-400" />
-                <p className="text-gray-500 text-sm">뉴스를 생성하는 중...</p>
+                <RefreshCw size={32} className="animate-spin text-ink" />
+                <p className="text-mute text-sm">뉴스를 생성하는 중...</p>
               </>
             )}
             {isReady && !newsLoading && currentNews.length === 0 && (
               <>
-                <Newspaper size={40} className="text-gray-300" />
-                <p className="text-gray-500 text-sm">이번 분기 뉴스 데이터가 없습니다.</p>
-                {retryError && <p className="text-red-600 text-xs max-w-sm text-center">{retryError}</p>}
-                <button onClick={handleRetry} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm transition-colors">
+                <Newspaper size={40} className="text-rule" />
+                <p className="text-mute text-sm">이번 분기 뉴스 데이터가 없습니다.</p>
+                {retryError && <p className="text-up text-xs max-w-sm text-center">{retryError}</p>}
+                <button onClick={handleRetry} className="flex items-center gap-2 px-4 py-2 border border-ink bg-transparent text-ink font-bold min-h-10 hover:bg-paper-deep text-sm transition-colors">
                   <RefreshCw size={14} />
                   뉴스 다시 생성
                 </button>
@@ -172,7 +170,7 @@ export default function AdminDashboardPage() {
           <div className="flex-1 flex flex-col min-h-0">
 
             {/* 탭 바 */}
-            <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-gray-200 shrink-0 overflow-x-auto">
+            <div className="flex items-center gap-1 px-4 pt-3 pb-0 border-b border-rule shrink-0 overflow-x-auto">
               {allTabs.map(tab => {
                 const group  = sectorGroups.find(g => g.sector === tab)
                 const impact = group?.sectorImpact ?? 0
@@ -180,10 +178,10 @@ export default function AdminDashboardPage() {
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t border-b-2 transition-colors whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       activeTab === tab
-                        ? 'border-emerald-600 text-gray-900 bg-gray-100'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                        ? 'border-ink text-ink bg-paper-deep'
+                        : 'border-transparent text-mute hover:text-ink hover:bg-paper-deep'
                     }`}
                   >
                     {tab}
@@ -227,53 +225,53 @@ export default function AdminDashboardPage() {
                   <div className="flex flex-col gap-5">
 
                     {/* 투자 조언 — 3열 컴팩트 */}
-                    <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                      <div className="px-4 py-2.5 bg-gray-100 border-b border-gray-200 flex items-center justify-between">
-                        <span className="text-gray-800 font-bold text-sm">투자 조언</span>
-                        <span className="text-gray-400 text-xs">±{NOISE}% noise 미적용</span>
+                    <section className="bg-paper-card border border-ink overflow-hidden">
+                      <div className="px-4 py-2.5 bg-paper-deep border-b border-ink flex items-center justify-between">
+                        <span className="text-ink font-bold text-sm">투자 조언</span>
+                        <span className="text-mute text-xs">±{NOISE}% noise 미적용</span>
                       </div>
-                      <div className="grid grid-cols-3 divide-x divide-gray-200">
+                      <div className="grid grid-cols-3 divide-x divide-ink">
 
                         {/* ① 강세 분야 */}
                         <div className="p-3 flex flex-col gap-1.5">
-                          <p className="text-red-600 text-xs font-semibold mb-1">① 강세 분야</p>
+                          <p className="text-up text-xs font-semibold mb-1">① 강세 분야</p>
                           {upSectors.length > 0 ? upSectors.map(g => (
-                            <div key={g.sector} className="flex items-center justify-between bg-red-50 border border-red-200 rounded px-2 py-1.5">
-                              <span className="text-gray-700 text-xs font-semibold">{g.sector}</span>
-                              <span className="text-red-600 text-xs font-bold">{fmtPct(g.sectorImpact)}</span>
+                            <div key={g.sector} className="flex items-center justify-between bg-up/10 border border-up px-2 py-1.5">
+                              <span className="text-ink-soft text-xs font-semibold">{g.sector}</span>
+                              <span className="text-up text-xs font-bold">{fmtPct(g.sectorImpact)}</span>
                             </div>
                           )) : (
-                            <p className="text-gray-400 text-xs">강세 섹터 없음</p>
+                            <p className="text-mute text-xs">강세 섹터 없음</p>
                           )}
                         </div>
 
                         {/* ② 약세 분야 */}
                         <div className="p-3 flex flex-col gap-1.5">
-                          <p className="text-blue-600 text-xs font-semibold mb-1">② 약세 분야</p>
+                          <p className="text-down text-xs font-semibold mb-1">② 약세 분야</p>
                           {downSectors.length > 0 ? downSectors.map(g => (
-                            <div key={g.sector} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded px-2 py-1.5">
-                              <span className="text-gray-700 text-xs font-semibold">{g.sector}</span>
-                              <span className="text-blue-600 text-xs font-bold">{fmtPct(g.sectorImpact)}</span>
+                            <div key={g.sector} className="flex items-center justify-between bg-down/10 border border-down px-2 py-1.5">
+                              <span className="text-ink-soft text-xs font-semibold">{g.sector}</span>
+                              <span className="text-down text-xs font-bold">{fmtPct(g.sectorImpact)}</span>
                             </div>
                           )) : (
-                            <p className="text-gray-400 text-xs">약세 섹터 없음</p>
+                            <p className="text-mute text-xs">약세 섹터 없음</p>
                           )}
                         </div>
 
                         {/* ③ 추천 종목 Top 5 */}
                         <div className="p-3 flex flex-col gap-1.5">
-                          <p className="text-emerald-600 text-xs font-semibold mb-1">③ 추천 종목 Top 5</p>
+                          <p className="text-ink text-xs font-semibold mb-1">③ 추천 종목 Top 5</p>
                           {top5.length > 0 ? top5.map((s, i) => (
-                            <div key={s.id} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-2 py-1.5">
+                            <div key={s.id} className="flex items-center justify-between bg-paper border border-rule px-2 py-1.5">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="text-gray-400 text-xs shrink-0">#{i + 1}</span>
-                                <span className="text-emerald-600 font-bold text-xs shrink-0">{s.id}</span>
-                                <span className="text-gray-500 text-xs truncate">{s.name}</span>
+                                <span className="text-mute text-xs shrink-0">#{i + 1}</span>
+                                <span className="text-ink font-bold text-xs shrink-0">{s.id}</span>
+                                <span className="text-mute text-xs truncate">{s.name}</span>
                               </div>
-                              <span className="text-red-600 text-xs font-bold shrink-0 ml-2">{fmtPct(s.change)}</span>
+                              <span className="text-up text-xs font-bold shrink-0 ml-2">{fmtPct(s.change)}</span>
                             </div>
                           )) : (
-                            <p className="text-gray-400 text-xs">상승 예상 종목 없음</p>
+                            <p className="text-mute text-xs">상승 예상 종목 없음</p>
                           )}
                         </div>
 
@@ -286,13 +284,13 @@ export default function AdminDashboardPage() {
                       const falling = ranked.filter(s => s.change < 0).reverse()
 
                       const StockRow = ({ s }: { s: typeof ranked[0] }) => (
-                        <div className="grid grid-cols-[3.5rem_1fr_3.5rem_5rem] px-3 py-2 items-center border-b border-gray-100 last:border-0 text-xs">
-                          <span className="text-emerald-600 font-bold">{s.id}</span>
+                        <div className="grid grid-cols-[3.5rem_1fr_3.5rem_5rem] px-3 py-2 items-center border-b border-rule last:border-0 text-xs">
+                          <span className="text-ink font-bold">{s.id}</span>
                           <div>
-                            <span className="text-gray-700">{s.name}</span>
-                            <span className="text-gray-400 ml-1.5">{s.sector}</span>
+                            <span className="text-ink-soft">{s.name}</span>
+                            <span className="text-mute ml-1.5">{s.sector}</span>
                           </div>
-                          <span className="text-right text-gray-400">{fmt(s.currentPrice)}</span>
+                          <span className="text-right text-mute">{fmt(s.currentPrice)}</span>
                           <span className={`text-right font-bold ${pctColor(s.change)}`}>{fmtPct(s.change)}</span>
                         </div>
                       )
@@ -300,26 +298,26 @@ export default function AdminDashboardPage() {
                       return (
                         <section className="grid grid-cols-2 gap-4">
                           {/* 상승 */}
-                          <div className="bg-white border border-red-200 rounded-xl overflow-hidden">
-                            <div className="px-3 py-2.5 bg-red-50 border-b border-red-200 flex items-center justify-between">
-                              <span className="text-red-600 font-bold text-sm">상승 예상</span>
-                              <span className="text-red-400 text-xs">{rising.length}종목</span>
+                          <div className="bg-paper-card border border-up overflow-hidden">
+                            <div className="px-3 py-2.5 bg-up/10 border-b border-up flex items-center justify-between">
+                              <span className="text-up font-bold text-sm">상승 예상</span>
+                              <span className="text-up text-xs">{rising.length}종목</span>
                             </div>
                             {rising.length > 0
                               ? rising.map(s => <StockRow key={s.id} s={s} />)
-                              : <p className="text-gray-400 text-xs px-3 py-3">해당 없음</p>
+                              : <p className="text-mute text-xs px-3 py-3">해당 없음</p>
                             }
                           </div>
 
                           {/* 하락 */}
-                          <div className="bg-white border border-blue-200 rounded-xl overflow-hidden">
-                            <div className="px-3 py-2.5 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
-                              <span className="text-blue-600 font-bold text-sm">하락 예상</span>
-                              <span className="text-blue-400 text-xs">{falling.length}종목</span>
+                          <div className="bg-paper-card border border-down overflow-hidden">
+                            <div className="px-3 py-2.5 bg-down/10 border-b border-down flex items-center justify-between">
+                              <span className="text-down font-bold text-sm">하락 예상</span>
+                              <span className="text-down text-xs">{falling.length}종목</span>
                             </div>
                             {falling.length > 0
                               ? falling.map(s => <StockRow key={s.id} s={s} />)
-                              : <p className="text-gray-400 text-xs px-3 py-3">해당 없음</p>
+                              : <p className="text-mute text-xs px-3 py-3">해당 없음</p>
                             }
                           </div>
                         </section>
@@ -333,15 +331,15 @@ export default function AdminDashboardPage() {
 
               {/* 섹터 탭 */}
               {activeTab !== '뉴스' && activeTab !== '요약' && (
-                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div className="bg-paper-card border border-ink overflow-hidden">
 
                   {/* 섹터 타이틀 */}
-                  <div className="px-4 py-2.5 bg-gray-100 border-b border-gray-200">
-                    <span className="text-gray-800 font-bold text-sm">{activeTab} 섹터</span>
+                  <div className="px-4 py-2.5 bg-paper-deep border-b border-ink">
+                    <span className="text-ink font-bold text-sm">{activeTab} 섹터</span>
                   </div>
 
                   {/* 컬럼 헤더 */}
-                  <div className="grid grid-cols-[9rem_5rem_1fr_8rem] items-center px-4 py-2 border-b border-gray-300 text-gray-400 text-xs">
+                  <div className="grid grid-cols-[9rem_5rem_1fr_8rem] items-center px-4 py-2 border-b border-rule text-mute text-xs">
                     <span>종목</span>
                     <span className="text-right">영향</span>
                     <span className="px-3">기사</span>
@@ -349,14 +347,14 @@ export default function AdminDashboardPage() {
                   </div>
 
                   {/* 전체 영향 행 (항상 표시) */}
-                  <div className="grid grid-cols-[9rem_5rem_1fr_8rem] items-start px-4 py-2.5 border-b border-gray-200 bg-gray-100">
-                    <span className="text-gray-500 text-xs font-semibold">전체 영향</span>
+                  <div className="grid grid-cols-[9rem_5rem_1fr_8rem] items-start px-4 py-2.5 border-b border-rule bg-paper-deep">
+                    <span className="text-mute text-xs font-semibold">전체 영향</span>
                     <span className={`text-right text-xs font-bold ${pctColor(currentGroup?.sectorImpact ?? 0)}`}>
                       {fmtPct(currentGroup?.sectorImpact ?? 0)}
                     </span>
                     <div className="px-3 flex flex-col gap-0.5">
                       {currentGroup?.globalArticles.map(a => (
-                        <span key={a.id} className="text-gray-400 text-xs leading-snug">{a.headline}</span>
+                        <span key={a.id} className="text-mute text-xs leading-snug">{a.headline}</span>
                       ))}
                     </div>
                     <span />
@@ -369,11 +367,11 @@ export default function AdminDashboardPage() {
                       const globalImpact   = row.impact - localImpact
 
                       return (
-                        <div key={row.id} className="grid grid-cols-[9rem_5rem_1fr_8rem] items-start px-4 py-2.5 border-b border-gray-200 last:border-0 hover:bg-gray-50 transition-colors">
+                        <div key={row.id} className="grid grid-cols-[9rem_5rem_1fr_8rem] items-start px-4 py-2.5 border-b border-rule last:border-0 hover:bg-paper-deep transition-colors">
                           {/* 종목 */}
                           <div>
-                            <div className="text-emerald-600 font-bold text-xs">{row.id}</div>
-                            <div className="text-gray-500 text-xs">{row.name}</div>
+                            <div className="text-ink font-bold text-xs">{row.id}</div>
+                            <div className="text-mute text-xs">{row.name}</div>
                           </div>
 
                           {/* 영향 % (합산) */}
@@ -388,10 +386,10 @@ export default function AdminDashboardPage() {
                                 <span className={`text-xs font-semibold shrink-0 w-10 text-right ${pctColor(c.impact)}`}>
                                   {c.impact >= 0 ? '+' : ''}{c.impact.toFixed(1)}%
                                 </span>
-                                <span className="text-gray-400 text-xs leading-snug">{c.headline}</span>
+                                <span className="text-mute text-xs leading-snug">{c.headline}</span>
                               </div>
                             )) : (
-                              <span className="text-gray-300 text-xs">-</span>
+                              <span className="text-rule text-xs">-</span>
                             )}
                           </div>
 
@@ -407,7 +405,7 @@ export default function AdminDashboardPage() {
                                 종목 {fmtPct(localImpact)}
                               </span>
                             )}
-                            <span className={`font-bold border-t border-gray-300 pt-0.5 mt-0.5 ${pctColor(row.impact)}`}>
+                            <span className={`font-bold border-t border-rule pt-0.5 mt-0.5 ${pctColor(row.impact)}`}>
                               = {fmtPct(row.impact)}
                             </span>
                           </div>
@@ -423,27 +421,27 @@ export default function AdminDashboardPage() {
                   {currentNews.map(article => {
                     const impacts = Object.entries(article.priceImpact)
                     return (
-                      <div key={article.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-2.5">
+                      <div key={article.id} className="bg-paper-card border border-ink p-4 flex flex-col gap-2.5">
                         <div className="flex items-start gap-3 flex-wrap">
-                          <span className="text-gray-700 text-sm font-medium flex-1 min-w-0">{article.headline}</span>
+                          <span className="text-ink-soft text-sm font-medium flex-1 min-w-0">{article.headline}</span>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {article.isSurprise && (
-                              <span className="text-xs px-2 py-0.5 rounded font-bold bg-yellow-400 text-yellow-900">
+                              <span className="text-xs px-2 py-0.5 font-bold bg-ink text-paper">
                                 ⚡ 반전
                               </span>
                             )}
                             {article.isInverted && (
-                              <span className="text-xs px-2 py-0.5 rounded font-bold bg-orange-500 text-white">
+                              <span className="text-xs px-2 py-0.5 font-bold border border-ink text-ink">
                                 ↕ 역행
                               </span>
                             )}
-                            <span className={`text-xs px-2 py-0.5 rounded font-semibold ${rollCls(article.sentiment, article.strength)}`}>
+                            <span className={`text-xs px-2 py-0.5 font-semibold ${rollCls(article.sentiment, article.strength)}`}>
                               {rollLabel(article.sentiment, article.strength)}
                             </span>
                           </div>
                         </div>
                         {article.summary && (
-                          <p className="text-gray-500 text-xs leading-relaxed border-l-2 border-gray-300 pl-3">
+                          <p className="text-mute text-xs leading-relaxed border-l-2 border-rule pl-3">
                             {article.summary}
                           </p>
                         )}
@@ -452,10 +450,10 @@ export default function AdminDashboardPage() {
                             {impacts.map(([symbol, pct]) => (
                               <span
                                 key={symbol}
-                                className={`text-xs px-2 py-0.5 rounded border ${
-                                  pct > 0  ? 'border-red-300 text-red-600 bg-red-50'
-                                  : pct < 0 ? 'border-blue-300 text-blue-600 bg-blue-50'
-                                  : 'border-gray-300 text-gray-900 bg-gray-100'
+                                className={`text-xs px-2 py-0.5 border ${
+                                  pct > 0  ? 'border-up text-up bg-up/10'
+                                  : pct < 0 ? 'border-down text-down bg-down/10'
+                                  : 'border-rule text-ink bg-paper-deep'
                                 }`}
                               >
                                 {symbol} {fmtPct(pct)}
@@ -463,7 +461,7 @@ export default function AdminDashboardPage() {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-gray-400 text-xs">영향 종목 없음</p>
+                          <p className="text-mute text-xs">영향 종목 없음</p>
                         )}
                       </div>
                     )

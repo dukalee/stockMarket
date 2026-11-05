@@ -1,5 +1,6 @@
 export type Sector = '기술' | '교육' | '금융' | '물류' | '게임'
-export type GamePhase = 'setup' | 'playing' | 'advancing'
+export type GamePhase = 'setup' | 'lobby' | 'playing' | 'advancing' | 'finished'
+export type GameMode  = 'simulation' | 'contest'
 export type Sentiment = 'bullish' | 'bearish' | 'neutral'
 
 export interface Stock {
