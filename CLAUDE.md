@@ -39,13 +39,13 @@
 | `src/components/title/NewsRotator.tsx` | 오늘의 기사 — 장식용 기사 3개가 6초마다 옆으로 슬라이드 (진행 막대 표시, 마우스 올리면 일시정지) |
 | `src/components/title/LiveChart.tsx` | 오늘의 차트 — 주가표에서 음영 표시된 종목의 가격 변화를 그대로 그림. 가격이 바뀔 때마다 새 캔들이 붙고 7번 갱신마다 다음 종목으로 바뀜 |
 | `src/data/titleNews.ts` | 타이틀 화면 전용 장식 기사 3개 (게임 뉴스 풀과 무관) |
-| `src/pages/HomePage.tsx` | 포트폴리오 대시보드 + 게임 규칙 & 분기 조건 달성 현황 |
+| `src/pages/HomePage.tsx` | 포트폴리오 대시보드 + 게임 규칙 |
 | `src/pages/TradePage.tsx` | 종목 목록·차트·매수매도 화면 |
 | `src/pages/NewsPage.tsx` | AI Times 스타일 뉴스 목록 (white tone, NYT 레이아웃) |
 | `src/pages/NewsArticlePage.tsx` | 뉴스 기사 상세 페이지 (white tone) |
 | `src/pages/AdminLoginPage.tsx` | 관리자 로그인 = **관리자 키 확인**. 서버 연결 시 `admin_list_contests`로 서버가 검사하고, 맞으면 키를 이 탭 `sessionStorage`(`src/utils/adminKey.ts`)에 보관한 뒤 `/admin/contests`로 이동. 대회 서버가 없으면 로그인할 수 없다(관리자 화면은 대회 관리만 한다). 타이틀 화면(SetupPage) 왼쪽 위 "관리자" 링크와 NavBar "관리자" 버튼으로 진입 |
 | `src/pages/AdminContestsPage.tsx` | 관리자 대회 관리 (`/admin/contests`) — 관리자 키 확인(탭 `sessionStorage`에만 저장, 탭을 닫으면 사라짐) → 넓은 화면 3열 배치(**왼쪽 새 대회 만들기 · 가운데 진행 중인 대회 · 오른쪽 종료된 대회**, 좁은 화면은 진행 중 → 만들기 → 종료 순으로 세로) → **진행 중인 대회**(대기·진행 중, 5초마다 갱신, 참가자 이름·수·마감 인원) + 줄별 **대회 시작 / 다음 분기로(마지막은 "마지막 분기 마감") / 참가 닫기 / 순위표 보기** + **새 대회 만들기** 폼 + **종료된 대회**(결과 보기=최종 순위·자산·수익률 인라인, 순위표 페이지, **데이터베이스에서 삭제**) |
-| `src/components/layout/NavBar.tsx` | 내비게이션·"Continue →" 버튼·분기 인디케이터·조건 모달·advanceError 배너 |
+| `src/components/layout/NavBar.tsx` | 내비게이션·"Continue →" 버튼·분기 인디케이터·advanceError 배너 |
 | `src/components/layout/AppShell.tsx` | 공통 레이아웃 래퍼. `advanceError` prop 전달 |
 | `src/components/market/StockList.tsx` | 종목 사이드바 — 보유 종목 필터·미선택 시 SSEI 자동 선택 |
 | `src/components/market/StockRow.tsx` | 종목 행 — 한글명·원 단위 현재가·등락 (2줄 레이아웃) |
@@ -72,8 +72,7 @@ playing 페이즈 (Q1)
   사용자 거래 가능 (이번 분기에 산 수량은 같은 분기에 매도 불가)
 
 NavBar "Continue →" 클릭
-  → 조건 미충족 시: 조건 모달 표시 (분기 진행 차단)
-  → 충족 시: 확인 모달 → useQuarterAdvance.advance()
+  → 확인 모달 → useQuarterAdvance.advance()
       1. computePriceChanges(currentNews)  ← 현재 분기 뉴스 impact 합산 + 반전 주사위
       2. applyQuarterPriceChanges(changes, "Y1Q1")  ← 가격 일괄 적용 + quarterLabel 기록
       3. snapshotPositions()  ← 현재 포트폴리오 스냅샷 저장 (다음 분기 비교용)
@@ -207,7 +206,7 @@ NavBar "Continue →" 클릭
 ### 포트폴리오 스냅샷 (`portfolioStore.ts`)
 - `prevQuarterPositions: Record<string, Position>` — 이전 분기 종료 시점 보유 종목 복사본
 - `snapshotPositions()` — `useQuarterAdvance`에서 분기 진행 시 호출
-- 분기 진행 조건 3번(포트폴리오 변경)의 비교 기준으로 사용
+- 더 이상 진행 조건에는 쓰이지 않는다 (기록용으로만 남아 있음)
 
 ### `PricePoint` 타입 (`types/index.ts`)
 ```ts
@@ -239,18 +238,12 @@ interface NewsArticle {
 - **이번 분기에 매수한 수량은 같은 분기에 매도할 수 없다.** 다음 분기부터 매도 가능
 - 매도 가능 수량 = 보유 수량 − 이번 분기 매수 수량 (`getSellableShares`, `portfolioStore.ts`). `sellStock`에서도 검증하고 `TradePanel`은 매도 가능 수량을 표시
 - 이전 분기부터 보유한 수량은 이번 분기에도 자유롭게 매도 가능
-- 분기 매수 조건 카운트는 보유 수량 > 0 인 종목만 카운트
+- 매수 패널에는 "이번 분기 매수 수량은 되팔 수 없다" 안내가 항상 보이고, 확인 팝업에도 한 번 더 뜬다
 
-### 분기 진행 조건 (`NavBar.tsx`)
-매 분기 진행 전 **세 조건 모두** 충족 필요:
-1. 서로 다른 종목 **2개 이상** 매수 후 보유 (`REQUIRED_STOCKS = 2`)
-2. 서로 다른 섹터 **2개 이상** 매수 후 보유 (`REQUIRED_SECTORS = 2`)
-3. 현재 보유 포트폴리오가 **이전 분기와 달라야** 함 (종목 구성 또는 수량 변경)
+### 분기 진행 조건
+**없다.** 종목 수·섹터 수·포트폴리오 변경 조건을 모두 삭제했다. 시뮬레이션은 "다음 분기로"를 누르면 확인 모달 후 바로 진행하고, 대회는 "이번 분기 마감" 후 전원 마감 또는 제한시간 만료까지 대기한다.
 
-- 조건 판정: 매수 거래 중 `positions[id].shares > 0` 인 종목만 카운트
-- 미충족 시: "Continue →" 버튼 노란색 → 클릭 시 조건 모달 (어떤 조건이 미달인지 표시)
 - NavBar 버튼 옆: 분기 인디케이터 `●—●—○—○` (지난 분기=초록 채움, 현재=흰 링, 미래=빈 원)
-- NavBar 상태 배지 없음 (조건 상세는 모달로만 확인)
 
 ---
 

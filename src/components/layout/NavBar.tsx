@@ -1,15 +1,12 @@
 import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Loader2, Lock, AlertTriangle, ShieldAlert, Clock, House, Flag } from 'lucide-react'
+import { Loader2, Lock, AlertTriangle, Clock, House, Flag } from 'lucide-react'
 import { useGameStore, quarterIndexOf } from '../../stores/gameStore'
 import { useRoundCountdown, formatCountdown } from '../../hooks/useRoundTimer'
-import { useMarketStore } from '../../stores/marketStore'
-import { usePortfolioStore } from '../../stores/portfolioStore'
 import { useContestRoundStore } from '../../stores/contestRoundStore'
 import { resetAllGameState } from '../../services/gameReset'
 import { computeTotalAssets } from '../../services/contestSync'
 import { forfeitWithFallback } from '../../services/pendingForfeit'
-import { REQUIRED_SECTORS, REQUIRED_STOCKS } from '../../utils/quarterRequirement'
 
 interface NavBarProps {
   isAdvancing?: boolean
@@ -34,10 +31,6 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
   const userName        = useGameStore(s => s.userName)
   const initialCapital  = useGameStore(s => s.initialCapital)
   const countdown        = useRoundCountdown()
-  const stocks         = useMarketStore(s => s.stocks)
-  const transactions           = usePortfolioStore(s => s.transactions)
-  const positions              = usePortfolioStore(s => s.positions)
-  const prevQuarterPositions   = usePortfolioStore(s => s.prevQuarterPositions)
 
   const qIndex = quarterIndexOf(currentYear, currentQuarter)
   const isLastQuarter = qIndex >= totalQuarters
@@ -47,40 +40,11 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
 
   const [quitModal,   setQuitModal]   = useState(false)
   const [confirm,     setConfirm]     = useState(false)
-  const [reqModal,    setReqModal]    = useState(false)
   const [forfeitModal, setForfeitModal] = useState(false)
   const [forfeitBusy,  setForfeitBusy]  = useState(false)
 
   // 대회를 진행하는 동안만 포기할 수 있다 (대기실·종료 후에는 해당 없음)
   const canForfeit = isContest && !!contest && (phase === 'playing' || phase === 'advancing')
-
-  // 이번 분기 매수 조건 계산
-  // 매수 후 전량 매도한 종목은 보유 포지션이 없으므로 요건 카운트에서 제외
-  const qLabel = `Y${currentYear}Q${currentQuarter}`
-  const stockMap = Object.fromEntries(stocks.map(s => [s.id, s]))
-  const boughtStockIds = [...new Set(
-    transactions
-      .filter(t => t.type === 'buy' && t.quarter === qLabel)
-      .map(t => t.stockId)
-      .filter(id => (positions[id]?.shares ?? 0) > 0)
-  )]
-  const coveredSectors = [...new Set(
-    boughtStockIds.map(id => stockMap[id]?.sector).filter(Boolean)
-  )]
-  const sectorCount = coveredSectors.length
-  const stockCount  = boughtStockIds.length
-
-  // 조건 3: 이번 분기 종료 시점 보유 종목이 이전 분기와 달라야 함
-  const currHeld = Object.keys(positions).filter(id => (positions[id]?.shares ?? 0) > 0)
-  const prevHeld = Object.keys(prevQuarterPositions).filter(id => (prevQuarterPositions[id]?.shares ?? 0) > 0)
-  const inventoryChanged = currHeld.length !== prevHeld.length
-    || currHeld.some(id => prevQuarterPositions[id]?.shares !== positions[id]?.shares)
-
-  const requirementMet = phase !== 'playing' || (
-    stockCount >= REQUIRED_STOCKS &&
-    sectorCount >= REQUIRED_SECTORS &&
-    inventoryChanged
-  )
 
   const tabClass = ({ isActive }: { isActive: boolean }) =>
     `px-1 py-1 text-[15px] border-b-2 transition-colors ${
@@ -114,7 +78,6 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
   }
 
   const handleAdvanceClick = () => {
-    if (!requirementMet) { setReqModal(true); return }
     setConfirm(true)
   }
 
@@ -228,9 +191,7 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
             onClick={finished ? openFinalResult : handleAdvanceClick}
             disabled={isAdvancing || waiting}
             className={`flex items-center gap-2 h-10 px-5 text-sm font-bold transition-colors disabled:bg-rule disabled:text-mute disabled:border-rule ${
-              requirementMet || finished
-                ? 'bg-ink text-paper hover:bg-ink-soft'
-                : 'bg-transparent text-ink border-2 border-ink hover:bg-paper-deep'
+              'bg-ink text-paper hover:bg-ink-soft'
             }`}
           >
             {isAdvancing ? (
@@ -255,46 +216,6 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
           )}
         </div>
       </header>
-
-      {/* 분기 진행 조건 모달 */}
-      {reqModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
-          onClick={() => setReqModal(false)}
-        >
-          <div className={modalBox} onClick={e => e.stopPropagation()}>
-            <div className="flex flex-col items-center gap-2 text-center">
-              <ShieldAlert size={30} className="text-ink" />
-              <h2 className="font-serif font-black text-xl">{requirementMet ? '분기 진행 조건 달성' : '분기 진행 조건 미충족'}</h2>
-            </div>
-
-            <div className="border-y border-ink flex flex-col text-sm">
-              <div className="flex items-center justify-between py-3 border-b border-rule">
-                <span className="text-mute">서로 다른 종목 매수</span>
-                <span className={`font-bold ${stockCount >= REQUIRED_STOCKS ? 'text-ink' : 'text-up'}`}>
-                  {stockCount} / {REQUIRED_STOCKS}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-3 border-b border-rule">
-                <span className="text-mute">서로 다른 섹터 매수</span>
-                <span className={`font-bold ${sectorCount >= REQUIRED_SECTORS ? 'text-ink' : 'text-up'}`}>
-                  {sectorCount} / {REQUIRED_SECTORS}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-3">
-                <span className="text-mute">이전 분기 대비 포트폴리오 변경</span>
-                <span className={`font-bold ${inventoryChanged ? 'text-ink' : 'text-up'}`}>
-                  {inventoryChanged ? '충족' : '미충족'}
-                </span>
-              </div>
-            </div>
-
-            <button onClick={() => setReqModal(false)} className={`${ghostBtn} flex-none w-full`}>
-              확인
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 대회 포기 확인 모달 — 포기한 시점의 점수로 최종 기록되고, 같은 대회에는 다시 들어올 수 없다 */}
       {forfeitModal && canForfeit && (() => {

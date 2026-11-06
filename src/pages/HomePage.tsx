@@ -5,10 +5,7 @@ import HoldingsTable from '../components/portfolio/HoldingsTable'
 import TransactionHistory from '../components/portfolio/TransactionHistory'
 import QuarterlyBreakdown from '../components/portfolio/QuarterlyBreakdown'
 import { useGameStore } from '../stores/gameStore'
-import { useMarketStore } from '../stores/marketStore'
-import { usePortfolioStore } from '../stores/portfolioStore'
 import { useQuarterAdvance } from '../hooks/useQuarterAdvance'
-import { REQUIRED_SECTORS, REQUIRED_STOCKS } from '../utils/quarterRequirement'
 
 
 type RightTab = 'history' | 'quarterly'
@@ -20,46 +17,8 @@ export default function HomePage() {
   const mode           = useGameStore(s => s.mode)
   const contest        = useGameStore(s => s.contest)
   const totalQuarters  = useGameStore(s => s.totalQuarters)
-  const stocks         = useMarketStore(s => s.stocks)
-  const transactions   = usePortfolioStore(s => s.transactions)
-  const positions      = usePortfolioStore(s => s.positions)
-  const prevQuarterPositions = usePortfolioStore(s => s.prevQuarterPositions)
   const [rightTab, setRightTab] = useState<RightTab>('history')
   const { advance, isAdvancing, advanceError } = useQuarterAdvance()
-
-  const qLabel   = `Y${currentYear}Q${currentQuarter}`
-  const stockMap = Object.fromEntries(stocks.map(s => [s.id, s]))
-
-  const boughtStockIds = [...new Set(
-    transactions
-      .filter(t => t.type === 'buy' && t.quarter === qLabel)
-      .map(t => t.stockId)
-      .filter(id => (positions[id]?.shares ?? 0) > 0)
-  )]
-  const coveredSectors = [...new Set(
-    boughtStockIds.map(id => stockMap[id]?.sector).filter(Boolean)
-  )]
-  const stockCount  = boughtStockIds.length
-  const sectorCount = coveredSectors.length
-
-  const currHeld = Object.keys(positions).filter(id => (positions[id]?.shares ?? 0) > 0)
-  const prevHeld = Object.keys(prevQuarterPositions).filter(id => (prevQuarterPositions[id]?.shares ?? 0) > 0)
-  const inventoryChanged = currHeld.length !== prevHeld.length
-    || currHeld.some(id => prevQuarterPositions[id]?.shares !== positions[id]?.shares)
-
-  const reqs = [
-    { label: `서로 다른 종목 ${REQUIRED_STOCKS}개 이상 매수`, status: `${stockCount}/${REQUIRED_STOCKS}`, met: stockCount >= REQUIRED_STOCKS },
-    { label: `서로 다른 섹터 ${REQUIRED_SECTORS}개 이상 매수`, status: `${sectorCount}/${REQUIRED_SECTORS}`, met: sectorCount >= REQUIRED_SECTORS },
-    { label: '이전 분기 대비 포트폴리오 변경', status: inventoryChanged ? '충족' : '미충족', met: inventoryChanged },
-  ]
-  const allMet = reqs.every(r => r.met)
-
-  const metCls = (m: boolean) => (m ? 'text-up' : 'text-ink-soft')
-  const reqRows = [
-    'i. 최소 2개 이상의 종목에 투자 (매수)를 해야 합니다.',
-    'ii. 최소 2개 이상의 분야에 투자를 해야 합니다.',
-    'iii. 전 분기와 동일한 포트폴리오로 다음 분기로 진행할 수 없습니다.',
-  ]
 
   return (
     <AppShell isAdvancing={isAdvancing} onAdvance={advance} advanceError={advanceError}>
@@ -71,10 +30,8 @@ export default function HomePage() {
           <p className="text-mute text-sm mt-1">YEAR {currentYear} Q{currentQuarter} 진행 중</p>
         </div>
 
-        {/* 게임 규칙 + 분기 진행 조건 */}
-        <div className={`border bg-paper-card px-5 py-4 flex flex-col gap-3 ${
-          allMet ? 'border-ink' : 'border-4 border-double border-ink'
-        }`}>
+        {/* 게임 규칙 */}
+        <div className="border border-ink bg-paper-card px-5 py-4 flex flex-col gap-3">
           <p className="font-serif font-black text-lg text-ink border-b-2 border-ink pb-1">
             {mode === 'contest' && contest ? `대회 규칙, ${contest.title || contest.code}` : '주식거래 시뮬레이터'}
           </p>
@@ -88,18 +45,7 @@ export default function HomePage() {
               )}
             </li>
             <li>2. 각 분기에 제공된 주요 뉴스 기사들을 읽고, 가장 많은 수익을 낼 수 있는 방법으로 투자를 해주세요.</li>
-            <li>
-              3. 각 분기에는 아래 조건을 충족해야 다음 분기로 넘어갈 수 있습니다.
-              <ul className="flex flex-col mt-2">
-                {reqRows.map((text, i) => (
-                  <li key={i} className="flex items-center gap-2 border-b border-rule py-1.5">
-                    <span className={`font-bold shrink-0 ${metCls(reqs[i].met)}`}>{reqs[i].met ? '✓' : '✗'}</span>
-                    <span>{text}</span>
-                    <span className={`ml-auto font-bold shrink-0 ${metCls(reqs[i].met)}`}>{reqs[i].status}</span>
-                  </li>
-                ))}
-              </ul>
-            </li>
+            <li>3. 이번 분기에 매수한 수량은 같은 분기에 되팔 수 없습니다. 다음 분기부터 매도할 수 있습니다.</li>
           </ol>
         </div>
 
