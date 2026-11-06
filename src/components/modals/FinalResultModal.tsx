@@ -63,7 +63,7 @@ export default function FinalResultModal() {
   const endContest = () => { resetAllGameState(); useContestRoundStore.getState().clear(); navigate('/setup') }
 
   return (
-    <div className={isContest ? 'fixed inset-0 z-50 bg-paper overflow-y-auto p-4 sm:p-8' : 'fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4'} role="dialog" aria-modal="true" aria-label={isContest ? '대회 최종 순위' : '최종 결과'}>
+    <div className={isContest ? 'fixed inset-0 z-[80] bg-paper overflow-y-auto p-4 sm:p-8' : 'fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4'} role="dialog" aria-modal="true" aria-label={isContest ? '대회 최종 순위' : '최종 결과'}>
       <div className={`w-full ${isContest ? 'max-w-2xl mx-auto' : 'max-w-md'} bg-paper-card border-4 border-double border-ink p-8 flex flex-col gap-5`}>
         <div className="text-center">
           <p className="m-0 text-xs text-mute">{mode === 'contest' && contest ? `대회 ${contest.title || contest.code}` : '시뮬레이션'}</p>
@@ -149,10 +149,12 @@ export default function FinalResultModal() {
         )}
 
         <div className="flex gap-3">
-          <button onClick={close} className="flex-1 h-11 border border-ink text-ink hover:bg-paper-deep text-sm font-medium transition-colors">
-            내 기록 둘러보기
-          </button>
-          {/* 대회: 새 게임 버튼 대신 "대회 종료" — 누르면 타이틀 화면으로 간다 (결과를 보고 다시 도전하는 것을 막는다) */}
+          {/* 대회: 닫기 버튼이 없다. "대회 종료"를 눌러야만 팝업이 꺼지고 타이틀 화면으로 간다 (결과를 보고 다시 도전하는 것을 막는다) */}
+          {!isContest && (
+            <button onClick={close} className="flex-1 h-11 border border-ink text-ink hover:bg-paper-deep text-sm font-medium transition-colors">
+              내 기록 둘러보기
+            </button>
+          )}
           {isContest ? (
             <button onClick={endContest} className="flex-1 h-11 bg-up hover:brightness-110 text-white text-sm font-bold transition">
               대회 종료
