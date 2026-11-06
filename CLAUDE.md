@@ -19,8 +19,9 @@
 | `src/utils/seededRandom.ts` | 시드 난수 (`createRng`) — 대회 모드에서 같은 조건을 만드는 데 사용 |
 | `src/lib/supabase.ts`, `src/services/contest.ts`, `src/services/contestSync.ts` | 대회 서버 연결·참가·점수 전송·순위표 |
 | `supabase/schema.sql` | 대회 모드 서버 설정 SQL (Supabase SQL Editor에서 실행) |
-| `src/pages/LeaderboardPage.tsx` | 대회 순위표 (`/leaderboard`) |
-| `src/hooks/useRoundTimer.ts` | 대회 라운드 남은 시간 표시 |
+| `src/pages/LeaderboardPage.tsx` | 대회 순위표 (`/leaderboard?code=`) — **관리자 전용**(App 경로 보호, 로그인 없으면 `/admin`으로). 코드 입력칸·진행자 메뉴 없음, 대회 관리 화면에서 같은 탭으로 들어온다. 1·2·3위 강조(1위 먹색 번호·굵은 줄), 분기별 **누적 수익률** 열(최대 12분기, 가로 스크롤·순위/이름 열 고정), 10초마다 갱신 |
+| `src/components/modals/QuarterBreakModal.tsx` | 대회 **분기 사이 10초 순위 팝업** — 학습자가 순위를 보는 유일한 곳. 상위 5명(1~3위 강조) + 내 순위, 남은 시간 막대·초 카운트다운, 2초마다 순위 갱신, 휴식이 끝나면 자동으로 닫힘. `RankBadge` 도 여기서 export |
+| `src/hooks/useRoundTimer.ts` | 대회 라운드 남은 시간 표시(`useRoundCountdown`, 휴식 중에는 제한시간 전체로 고정) + 분기 사이 휴식 상태(`useRoundBreak`, 서버가 정한 다음 분기 시작 시각까지 남은 시간) |
 | `src/hooks/useContestSync.ts`, `src/services/quarterAdvance.ts` | 대회 동기화(서버 라운드 폴링, 분기 진행, 대기실 시작, 마감) |
 | `src/pages/LobbyPage.tsx`, `src/components/layout/RoundWaitBanner.tsx` | 대회 대기실, 마감 후 대기 안내 |
 | `src/components/modals/FinalResultModal.tsx`, `TimeoutNoticeModal.tsx` | 최종 결과, 시간 초과 안내 |
@@ -42,8 +43,8 @@
 | `src/pages/TradePage.tsx` | 종목 목록·차트·매수매도 화면 |
 | `src/pages/NewsPage.tsx` | AI Times 스타일 뉴스 목록 (white tone, NYT 레이아웃) |
 | `src/pages/NewsArticlePage.tsx` | 뉴스 기사 상세 페이지 (white tone) |
-| `src/pages/AdminLoginPage.tsx` | 관리자 로그인 (비밀번호: rootroot) |
-| `src/pages/AdminDashboardPage.tsx` | 관리자 대시보드 — 아래 §Admin 대시보드 섹션 참조 |
+| `src/pages/AdminLoginPage.tsx` | 관리자 로그인 = **관리자 키 확인**. 서버 연결 시 `admin_list_contests`로 서버가 검사하고, 맞으면 키를 이 탭 `sessionStorage`(`src/utils/adminKey.ts`)에 보관한 뒤 `/admin/contests`로 이동. 대회 서버가 없으면 로그인할 수 없다(관리자 화면은 대회 관리만 한다). 타이틀 화면(SetupPage) 왼쪽 위 "관리자" 링크와 NavBar "관리자" 버튼으로 진입 |
+| `src/pages/AdminContestsPage.tsx` | 관리자 대회 관리 (`/admin/contests`) — 관리자 키 확인(탭 `sessionStorage`에만 저장, 탭을 닫으면 사라짐) → 넓은 화면 3열 배치(**왼쪽 새 대회 만들기 · 가운데 진행 중인 대회 · 오른쪽 종료된 대회**, 좁은 화면은 진행 중 → 만들기 → 종료 순으로 세로) → **진행 중인 대회**(대기·진행 중, 5초마다 갱신, 참가자 이름·수·마감 인원) + 줄별 **대회 시작 / 다음 분기로(마지막은 "마지막 분기 마감") / 참가 닫기 / 순위표 보기** + **새 대회 만들기** 폼 + **종료된 대회**(결과 보기=최종 순위·자산·수익률 인라인, 순위표 페이지, **데이터베이스에서 삭제**) |
 | `src/components/layout/NavBar.tsx` | 내비게이션·"Continue →" 버튼·분기 인디케이터·조건 모달·advanceError 배너 |
 | `src/components/layout/AppShell.tsx` | 공통 레이아웃 래퍼. `advanceError` prop 전달 |
 | `src/components/market/StockList.tsx` | 종목 사이드바 — 보유 종목 필터·미선택 시 SSEI 자동 선택 |
@@ -90,13 +91,13 @@ NavBar "Continue →" 클릭
 
 | | 시뮬레이션 (대회 코드 없음) | 대회 (대회 코드 입력) |
 |---|---|---|
-| 분기 수 | **4분기** (`SIMULATION_QUARTERS`) | 대회 설정(`contests.quarters`, 기본 8) |
+| 분기 수 | **4분기** (`SIMULATION_QUARTERS`) | 대회 설정(`contests.quarters`, 기본 8, **최대 12** — `MAX_CONTEST_QUARTERS`) |
 | 조건 | 매번 무작위 | 같은 코드면 모두 같은 시작가·기사·등락(시드) |
 | 분기 진행 | 사용자가 "다음 분기로"를 누르면 바로 | **전원 동기화**: 전원이 마감하거나 제한시간이 지나면 모두 함께 다음 분기로 |
 | 제한시간 | 없음 | 분기마다 5분 (`round_seconds`) — 마감하지 못하면 현금과 보유 주식의 25% 차감 (`penalty_rate`) 후 자동 진행 |
 | 시작 | 바로 | 대기실에서 기다리다 **진행자가 시작 버튼**을 누르면 동시에 1분기 시작. 시작 후 새 참가 불가 |
-| 종료 | 마지막 분기 마감 시 최종 결과 팝업 | 최종 결과 + 순위표(Supabase) |
-| 관리자 화면 | 사용 가능 | **대회 중 차단** (다음 분기 영향 수치가 보이기 때문) |
+| 종료 | 마지막 분기 마감 시 최종 결과 팝업 | 최종 결과 팝업(내 순위 한 줄만. 순위표 보기·새 게임 버튼 없음) |
+| 관리자 화면 | 사용 가능 | **대회 중 차단** (대회에 참가 중인 기기에서는 열 수 없다). 관리자 화면은 **대회 관리**(만들기·시작·넘기기·닫기·순위표·삭제)만 한다 |
 
 - 시작은 `SetupPage`의 투자자 등록서. 이름 + 대회 코드(선택) + 초기 자본(대회에서는 서버 설정으로 고정)
 - **"처음 화면으로" 버튼**(NavBar, 시뮬레이션 전용): 확인 후 현재 시뮬레이션을 포기하고 `/setup`으로 돌아간다 (`resetAllGameState`). 끝난 게임에서는 확인 없이 이동. 대회 모드에서는 보이지 않는다
@@ -114,7 +115,10 @@ NavBar "Continue →" 클릭
   - `join_contest`, `get_round_state`, `finish_round`, `submit_score`, `get_leaderboard`, `host_start_contest`, `host_force_next`, (내부) `_close_rounds`
   - 라운드 전환은 스케줄러 없이, 누군가 `get_round_state`를 호출할 때 `_close_rounds`가 "전원 마감 또는 제한시간 초과"를 계산해서 닫는다. 오래 방치돼도 지난 라운드를 순서대로 모두 닫는다
   - 마감하지 못한 참가자는 `penalty_rounds`에 그 라운드가 기록된다
-  - 대회 만들기: SQL Editor에서 `contests`에 insert (예시는 schema.sql 맨 아래). 코드는 대문자, `host_key`는 진행자만 아는 키
+  - **대회 만들기 (사이트)**: 타이틀 화면 "관리자" → 관리자 키 입력 → 바로 `/admin/contests`. 서버 함수 `create_contest(p_admin_key, …)`가 `admin_settings`의 관리자 키 해시(sha256)를 확인한 뒤에만 insert. 시드·`host_key`는 서버가 무작위 생성, 코드를 비우면 6자리 자동 생성. 관리자 키는 SQL Editor에서 한 번 등록한다 (schema.sql 아래쪽 "관리자 키 등록"). `.env`의 `ADMIN_KEY`는 값을 기록해 두는 용도일 뿐 앱이 읽지 않으며, **`VITE_` 를 붙이면 브라우저 번들에 들어가 공개되므로 금지**. 샘플은 `.env.example`
+  - 대회 직접 만들기: SQL Editor에서 `contests`에 insert도 가능 (예시는 schema.sql 맨 아래). 코드는 대문자, `host_key`는 진행자만 아는 키
+  - **대회 관리 (사이트)**: 진행자 키를 잃어도 관리자 화면에서 계속 진행할 수 있도록, 서버 함수 `admin_list_contests` / `admin_start_contest` / `admin_force_next` / `admin_close_contest`가 **관리자 키**로 동작한다 (내부 `_check_admin`이 검사, 브라우저 직접 호출 차단). 시작·넘기기는 기존 `host_start_contest`·`host_force_next`를 호출. 순위표의 "진행자 메뉴"(진행자 키)도 그대로 쓸 수 있다
+  - **대회 삭제**: `admin_delete_contest`가 관리자 키 확인 후 **종료(`finished`)된 대회만** 참가자 기록(`on delete cascade`)과 함께 삭제한다. 대기·진행 중인 대회는 서버가 `not_finished`로 거부 (화면에서만 막는 게 아님). 삭제 전 확인창에 대회 이름·참가자 수 표시. 끝난 대회는 지우지 않으면 목록에 남는다
   - 환경 변수 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (`.env.example`, Vercel에도 추가). 없으면 대회 모드는 꺼지고 시뮬레이션만 동작
 - **클라이언트 흐름**
   1. 참가 → `enterLobby` → `/lobby` (`LobbyPage`, 참가자 목록·규칙)
@@ -123,8 +127,12 @@ NavBar "Continue →" 클릭
   4. 서버가 라운드를 넘기면 `advanceQuarter`가 (내 분기에 페널티가 표시돼 있으면 `applyPenalty` 후) 시드 결과를 적용하고 다음 분기 뉴스를 만든 뒤 `syncContestScore`로 점수 전송
   - 제한시간 표시는 서버가 정한 라운드 시작 시각 + 서버 시각 오프셋(`clockOffsetMs`)으로 계산
 - **페널티**: `portfolioStore.applyPenalty(rate)` — 현금은 반올림한 25%, 주식은 종목별 25%에 가장 가까운 정수 주(1주만 있으면 잃지 않음). 안내는 `TimeoutNoticeModal`
-- **진행자**: `/leaderboard?code=...`의 "진행자 메뉴"에서 진행자 키로 "대회 시작", "지금 다음 분기로 넘기기"
-- **순위표**: 로그인 없이 코드만으로 열람, 10초마다 갱신, 수익률 순
+- **진행자**: 순위표의 진행자 메뉴는 없앴다. 대회 시작·넘기기·닫기는 관리자 화면(`/admin/contests`)에서 관리자 키로 한다
+- **순위표**: **관리자만** 본다(`/leaderboard`는 관리자 로그인 필요, 학습자용 상단 메뉴·타이틀 링크·최종 결과 버튼 모두 제거). 학습자는 분기가 넘어갈 때 뜨는 순위 팝업으로만 본다. 수익률 순, 분기별 누적 수익률 기록(`contest_players.quarter_returns`, 인덱스=분기 번호, 기록 없는 분기는 null)
+- **대회 포기**: 대회 중 NavBar의 빨간 **"대회 포기"** 버튼("이번 분기 마감" 왼쪽) → 확인 창(최종 기록될 자산·수익률, "n분기 포기" 안내) → 서버 `forfeit_contest`로 포기한 시점의 점수를 최종 기록하고 포기한 분기(`contest_players.forfeited_quarter`)를 남긴 뒤 타이틀 화면으로 이동. 서버는 `round_done = quarters + 1`로 두어 포기한 참가자를 "전부 마감한 사람"으로 세므로 나머지 참가자가 기다리지 않고 페널티도 붙지 않는다. 포기한 대회에는 `join_contest`가 `forfeited`로 거부(재입장 불가), 이후 `submit_score`는 무시. 순위표에 "n분기 포기"와 해당 분기 칸 "포기", 팝업·관리자 결과표에도 표시. **서버에 연결할 수 없어도 포기는 진행**된다: `src/services/pendingForfeit.ts`가 8초 안에 응답이 없거나 연결이 안 되면 포기를 localStorage(`shiftstocks-pending-forfeit`)에 저장하고, `usePendingForfeitSync`(App)가 앱 시작·`online` 이벤트·15초마다 다시 보내며(서버는 같은 포기를 한 번만 처리) 타이틀 화면에 "포기 기록을 서버에 보내는 중" 안내를 띄운다. 보내기 전에는 같은 이름으로 그 대회에 다시 참가할 수 없다
+- **시뮬레이션**: NavBar의 "처음 화면으로"는 "다음 분기로" 왼쪽의 빨간 버튼(대회의 "대회 포기"와 같은 자리). 끝난 게임에서는 확인 없이 이동
+- **관리자 화면 NavBar**: `/admin*`에서는 로고만 남기고 홈·거래·뉴스·관리자 메뉴, 분기 표시, 제한시간, 모든 게임 버튼을 숨긴다
+- **분기 사이 10초 휴식**: 서버 `_close_rounds`가 다음 분기 시작 시각을 (닫은 시각 + 10초)로 잡는다(`v_break`, 클라이언트 `ROUND_BREAK_MS`와 같은 값). 이 동안 학습자 화면에 순위 팝업이 뜨고, 제한시간은 휴식이 끝난 뒤부터 센다. 휴식 중 `finish_round`는 `round_not_started`로 거부. 팝업 표시 여부는 서버 상태(`roundStartedAt`이 미래인지)에서 계산하므로 새로고침해도 같은 시간에 끝난다. 이전 분기 결과 팝업(`QuarterResultModal`)·페널티 안내는 기존대로 그 위/아래에 뜬다
 - **검증**: `supabase/schema.sql`은 실제 Postgres 엔진(pglite)으로 다중 참가자 시나리오를 돌려 확인했고, 클라이언트 전체 흐름은 가짜 서버를 붙인 브라우저 3개(참가자 2 + 진행자)로 확인했다
 - **한계**: 점수는 브라우저가 보내므로 조작 가능하고, 시드는 참가자 브라우저에 있어 개발자 도구로 미래 분기를 미리 계산할 수 있다. 엄격한 대회가 필요하면 서버가 분기마다 기사를 내려 주거나 매매 기록을 서버에서 재검증해야 한다
 
@@ -246,37 +254,6 @@ interface NewsArticle {
 
 ---
 
-## Admin 대시보드 (`/admin/dashboard`)
-
-탭 구성: **요약 / 기술 / 교육 / 금융 / 물류 / 게임 / 뉴스**
-
-### 요약 탭
-
-**위험 요소 배너** — 분기 진행 후 항상 표시
-- 미발동: "위험 요소 미발동" 안내
-- 발동 시: 반전 기사 제목 + 영향 종목 칩 목록 (`심볼 한글명 원래% → 반전%`)
-
-**투자 조언** — 기사 합산 기준값 (±10% noise 미적용)
-1. 강세 분야: sectorImpact > 2% 섹터 + 대표 기사 헤드라인
-2. 약세 분야: sectorImpact < -2% 섹터 + 대표 기사 헤드라인
-3. 추천 종목 Top 5: 상승 예상 상위 5개 + 예상 변동률 + 근거 기사 헤드라인
-
-**전체 종목 예상 변동 순위** — 15개 전종목 (0.0% 포함)
-
-### 섹터 탭 (기술/교육/금융/물류/게임)
-- 탭 버튼에 섹터 영향도 % 표시
-- 전체 영향 행: 글로벌 기사 합산 + 헤드라인 목록
-- 종목 행: 로컬 기사만 표시, 우측 `전체+종목=합산` 분해
-
-### 뉴스 탭
-- 헤드라인 + 배지 + summary + 영향 종목 칩
-- **배지 구성** (왼쪽→오른쪽):
-  - `⚡ 반전` (노란색) — `isSurprise: true` 기사에만 표시
-  - 강도 배지 (`약간 부정` / `부정` / `매우 부정` / `약간 긍정` / `긍정` / `매우 긍정`) — 강도별 색 농도
-- 감성 배지(긍정↑/부정↓) 별도 표시 없음 (강도 배지와 중복이므로 제거)
-
----
-
 ## 스토어 구조
 
 | 스토어 | 주요 상태 |
@@ -292,7 +269,7 @@ interface NewsArticle {
 | 위치 | 동작 |
 |------|------|
 | `SetupPage` Q1 뉴스 실패 | 에러 메시지 표시 + `navigate('/')` 차단. 풀 조회 실패 시에만 발생 (정상적으로는 발생하지 않음) |
-| `useQuarterAdvance` 뉴스 실패 | `setNews([])` + `advanceError` 상태 노출 → NavBar 빨간 배너 표시. Admin 대시보드에서 "뉴스 다시 생성" 가능 |
+| `useQuarterAdvance` 뉴스 실패 | `setNews([])` + `advanceError` 상태 노출 → NavBar 빨간 배너 표시. 새로고침하면 `useRestoreGame`이 같은 조건으로 기사를 다시 채운다 |
 
 ---
 

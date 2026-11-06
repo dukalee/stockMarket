@@ -130,10 +130,10 @@ React + Vite + TypeScript · GPT-4o 뉴스 생성 · 한국 증권 UI 관례
 
 ### 4-6. AdminLoginPage `/admin`
 
-- 비밀번호 입력 (정답: `rootroot`)
+- 관리자 키 입력 (서버가 검사한다)
 - 오류 시 에러 메시지 표시
 
-### 4-7. AdminDashboardPage `/admin/dashboard`
+### 4-7. AdminDashboardPage `/admin/dashboard` — ※ 제거됨 (관리자 화면은 대회 관리만 한다. 기록용으로만 남김)
 
 관리자 전용. 탭 구성: **요약 / 기술 / 교육 / 금융 / 물류 / 게임 / 뉴스**
 

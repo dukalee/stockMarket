@@ -1,31 +1,31 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CircleAlert, Loader2 } from 'lucide-react'
-import { fetchLeaderboard, hostStartContest, hostForceNext, type LeaderboardData } from '../services/contest'
+import { fetchLeaderboard, type LeaderboardData, type LeaderboardRow } from '../services/contest'
 import { isContestServerConfigured } from '../lib/supabase'
-import { useGameStore } from '../stores/gameStore'
+import { RankBadge } from '../components/modals/QuarterBreakModal'
 
 const REFRESH_MS = 10_000   // 10초마다 순위를 새로 가져온다
 const fmt = (n: number | null) => (n === null ? '-' : `₩${Math.round(n).toLocaleString('ko-KR')}`)
+const fmtPct = (n: number | null | undefined) => (n === null || n === undefined ? '–' : `${n > 0 ? '+' : ''}${Number(n).toFixed(2)}%`)
+const pctColor = (n: number | null | undefined) => (n === null || n === undefined || n === 0 ? 'text-mute' : n > 0 ? 'text-up' : 'text-down')
 
-/** 대회 순위표 — 로그인 없이 대회 코드만으로 볼 수 있다 */
+// 가로로 밀어도 순위와 이름은 고정해서 보이게 한다 (순위 칸 너비 = 56px)
+const RANK_W = 'w-14 min-w-14 max-w-14'
+
+/**
+ * 대회 순위표 — 관리자만 볼 수 있다 (App 의 경로 보호). 대회는 관리자 화면에서 골라 들어온다.
+ * 일반 참가자는 분기가 넘어갈 때 뜨는 순위 팝업으로만 순위를 본다.
+ */
 export default function LeaderboardPage() {
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const code = (params.get('code') ?? '').trim().toUpperCase()
 
-  const myName    = useGameStore(s => s.userName)
-  const myContest = useGameStore(s => s.contest)
-  const ready     = useGameStore(s => s.phase !== 'setup')
-
-  const [input, setInput]       = useState(code)
   const [data, setData]         = useState<LeaderboardData | null>(null)
   const [error, setError]       = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
   const [onlyDone, setOnlyDone] = useState(false)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
-  const [hostKey, setHostKey]   = useState('')
-  const [hostMsg, setHostMsg]   = useState<{ text: string; error: boolean } | null>(null)
-  const [hostBusy, setHostBusy] = useState(false)
 
   const load = useCallback(async () => {
     if (!code) return
@@ -49,42 +49,25 @@ export default function LeaderboardPage() {
     return () => window.clearInterval(id)
   }, [code, load])
 
-  const isMine = (nick: string) => myContest?.code === code && nick === myName
-  const rows = (data?.players ?? []).filter(p => !onlyDone || p.finished)
+  const all   = data?.players ?? []
   const total = data?.contest.quarters ?? 0
-
-  const runHost = async (fn: (code: string, key: string) => Promise<void>, done: string) => {
-    if (!code) return
-    if (!hostKey.trim()) { setHostMsg({ text: '진행자 키를 입력해 주세요.', error: true }); return }
-    setHostBusy(true)
-    try {
-      await fn(code, hostKey.trim())
-      setHostMsg({ text: done, error: false })
-      await load()
-    } catch (err) {
-      setHostMsg({ text: err instanceof Error ? err.message : '실패했습니다.', error: true })
-    } finally {
-      setHostBusy(false)
-    }
-  }
+  // 순위는 전체 목록에서의 위치다 (필터로 숨겨도 순위는 그대로)
+  const rows: { p: LeaderboardRow; rank: number }[] = all
+    .map((p, i) => ({ p, rank: i + 1 }))
+    .filter(({ p }) => !onlyDone || p.finished)
+  const quarterCols = Array.from({ length: total }, (_, i) => i)
 
   const statusText = !data ? '' :
-    data.contest.status === 'lobby'    ? `대기 중, 참가자 ${data.players.length}명` :
+    data.contest.status === 'lobby'    ? `대기 중, 참가자 ${all.length}명` :
     data.contest.status === 'running'  ? `${data.contest.current_round} / ${data.contest.quarters}분기 진행 중` :
                                          '대회가 끝났습니다'
 
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const next = input.trim().toUpperCase()
-    if (next) setParams({ code: next })
-  }
-
   return (
     <div className="min-h-screen bg-paper text-ink flex flex-col px-5 sm:px-10 pt-7 pb-5">
-      <div className="max-w-3xl w-full mx-auto flex-1 flex flex-col">
+      <div className="max-w-6xl w-full mx-auto flex-1 flex flex-col">
 
         <div className="flex justify-between items-center text-[13px] pb-2.5 border-b border-ink">
-          <Link to={ready ? '/' : '/setup'} className="text-ink hover:underline">← {ready ? '게임으로 돌아가기' : '처음으로'}</Link>
+          <Link to="/admin/contests" className="text-ink hover:underline">← 대회 관리</Link>
           <span>shiftStocks</span>
         </div>
 
@@ -95,26 +78,8 @@ export default function LeaderboardPage() {
               {data.contest.title || data.contest.code}, 전체 {total}분기
             </p>
           )}
-          {data && (
-            <p className="m-0 mt-1 text-sm font-bold">{statusText}</p>
-          )}
+          {data && <p className="m-0 mt-1 text-sm font-bold">{statusText}</p>}
         </div>
-
-        {/* 대회 코드 입력 */}
-        <form onSubmit={submit} className="flex gap-2 pt-5">
-          <label htmlFor="lb-code" className="sr-only">대회 코드</label>
-          <input
-            id="lb-code"
-            value={input}
-            onChange={e => setInput(e.target.value.toUpperCase())}
-            placeholder="대회 코드를 입력하세요"
-            autoComplete="off"
-            className="flex-1 min-w-0 h-11 bg-transparent border-0 border-b border-ink px-1 text-[17px] focus:outline-none placeholder:text-mute/60"
-          />
-          <button type="submit" className="h-11 px-5 bg-ink hover:bg-ink-soft text-paper text-sm font-bold transition-colors">
-            순위 보기
-          </button>
-        </form>
 
         {!isContestServerConfigured && (
           <p className="flex items-start gap-1.5 text-up text-sm pt-5 m-0" role="alert">
@@ -124,7 +89,10 @@ export default function LeaderboardPage() {
         )}
 
         {isContestServerConfigured && !code && (
-          <p className="text-mute text-sm pt-8 m-0 text-center">참가한 대회의 코드를 입력하면 순위가 나타납니다.</p>
+          <p className="text-mute text-sm pt-8 m-0 text-center">
+            대회 관리 화면에서 대회를 골라 순위표를 열어 주세요.{' '}
+            <Link to="/admin/contests" className="text-ink underline underline-offset-2">대회 관리로 가기</Link>
+          </p>
         )}
 
         {error && (
@@ -152,35 +120,53 @@ export default function LeaderboardPage() {
                 {onlyDone ? '아직 끝까지 마친 참가자가 없습니다.' : '아직 참가자가 없습니다.'}
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[520px]">
+              <div className="overflow-x-auto border-y border-ink">
+                <table className="w-full text-sm border-separate border-spacing-0">
                   <thead>
-                    <tr className="text-mute border-b-2 border-ink text-left">
-                      <th className="pb-2 font-medium w-14">순위</th>
-                      <th className="pb-2 font-medium">이름</th>
-                      <th className="pb-2 font-medium text-right whitespace-nowrap">진행</th>
-                      <th className="pb-2 pl-4 font-medium text-right">총 자산</th>
-                      <th className="pb-2 pl-4 font-medium text-right">수익률</th>
+                    <tr className="text-mute text-left">
+                      <th className={`sticky left-0 z-10 bg-paper border-b-2 border-ink pb-2 pt-2 pl-1 font-medium ${RANK_W}`}>순위</th>
+                      <th className="sticky left-14 z-10 bg-paper border-b-2 border-ink border-r border-r-rule pb-2 pt-2 pr-4 font-medium min-w-28">이름</th>
+                      <th className="border-b-2 border-ink pb-2 pt-2 pr-4 font-medium text-right whitespace-nowrap">진행</th>
+                      <th className="border-b-2 border-ink pb-2 pt-2 pr-4 font-medium text-right whitespace-nowrap">총 자산</th>
+                      <th className="border-b-2 border-ink pb-2 pt-2 pr-5 font-medium text-right whitespace-nowrap">수익률</th>
+                      {quarterCols.map(i => (
+                        <th key={i} scope="col" title={`${i + 1}분기 마감 시점의 누적 수익률`} className="border-b-2 border-l border-ink border-l-rule pb-2 pt-2 px-3 font-medium text-right whitespace-nowrap">
+                          {i + 1}분기
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((p, i) => {
-                      const pct  = p.return_pct
-                      const mine = isMine(p.nickname)
+                    {rows.map(({ p, rank }) => {
+                      const pct = p.return_pct
+                      const top = rank <= 3
+                      const rowBg = rank === 1 ? 'bg-paper-card' : 'bg-paper'
+                      const pad = rank === 1 ? 'py-4' : rank <= 3 ? 'py-3.5' : 'py-3'
+                      const edge = rank === 1 ? 'border-b-2 border-ink' : 'border-b border-rule'
                       return (
-                        <tr key={p.nickname} className={`border-b border-rule ${mine ? 'bg-paper-deep' : ''}`}>
-                          <td className="py-3 font-serif font-black text-lg">{i + 1}</td>
-                          <td className="py-3 font-medium">
+                        <tr key={p.nickname}>
+                          <td className={`sticky left-0 z-10 ${rowBg} ${edge} ${pad} pl-1 ${RANK_W}`}><RankBadge rank={rank} /></td>
+                          <td className={`sticky left-14 z-10 ${rowBg} ${edge} border-r border-r-rule ${pad} pr-4 min-w-28 ${top ? 'font-serif font-black text-base' : 'font-medium'}`}>
                             {p.nickname}
-                            {mine && <span className="ml-1.5 text-[11px] text-mute">나</span>}
                           </td>
-                          <td className="py-3 text-right whitespace-nowrap text-ink-soft">
-                            {p.finished ? <span className="font-bold text-ink">완료</span> : `${p.quarter} / ${total}분기`}
+                          <td className={`${rowBg} ${edge} ${pad} pr-4 text-right whitespace-nowrap text-ink-soft`}>
+                            {p.forfeited_quarter != null
+                              ? <span className="font-bold text-up">{p.forfeited_quarter}분기 포기</span>
+                              : p.finished ? <span className="font-bold text-ink">완료</span> : `${p.quarter} / ${total}분기`}
                           </td>
-                          <td className="py-3 pl-4 text-right tabular-nums">{fmt(p.total_assets)}</td>
-                          <td className={`py-3 pl-4 text-right font-bold tabular-nums ${pct !== null && pct > 0 ? 'text-up' : pct !== null && pct < 0 ? 'text-down' : 'text-mute'}`}>
+                          <td className={`${rowBg} ${edge} ${pad} pr-4 text-right tabular-nums whitespace-nowrap ${top ? 'font-bold' : ''}`}>{fmt(p.total_assets)}</td>
+                          <td className={`${rowBg} ${edge} ${pad} pr-5 text-right font-bold tabular-nums whitespace-nowrap ${top ? 'text-base' : ''} ${pctColor(pct)}`}>
                             {pct === null ? '-' : `${pct > 0 ? '▲' : pct < 0 ? '▼' : '–'} ${Math.abs(pct).toFixed(2)}%`}
                           </td>
+                          {quarterCols.map(i => {
+                            const v = p.quarter_returns?.[i] ?? null
+                            const forfeitedHere = p.forfeited_quarter === i + 1
+                            return (
+                              <td key={i} className={`${rowBg} ${edge} ${pad} px-3 border-l border-l-rule text-right tabular-nums whitespace-nowrap ${forfeitedHere ? "text-up font-bold" : pctColor(v)}`}>
+                                {forfeitedHere ? "포기" : fmtPct(v)}
+                              </td>
+                            )
+                          })}
                         </tr>
                       )
                     })}
@@ -188,46 +174,10 @@ export default function LeaderboardPage() {
                 </table>
               </div>
             )}
-            <details className="border-t border-ink pt-3">
-              <summary className="cursor-pointer text-sm text-mute hover:text-ink">진행자 메뉴</summary>
-              <div className="pt-3 flex flex-col gap-3">
-                <label htmlFor="host-key" className="text-sm text-ink-soft">진행자 키</label>
-                <input
-                  id="host-key"
-                  type="password"
-                  value={hostKey}
-                  onChange={e => setHostKey(e.target.value)}
-                  autoComplete="off"
-                  className="h-11 bg-transparent border-0 border-b border-ink px-1 text-[16px] focus:outline-none"
-                />
-                <div className="flex flex-wrap gap-2">
-                  {data.contest.status === 'lobby' && (
-                    <button
-                      onClick={() => runHost(hostStartContest, '대회를 시작했습니다. 참가자 화면에서 1분기가 열립니다.')}
-                      disabled={hostBusy || data.players.length === 0}
-                      className="h-11 px-5 bg-up hover:brightness-110 disabled:bg-rule disabled:text-mute text-white text-sm font-bold transition"
-                    >
-                      대회 시작 ({data.players.length}명)
-                    </button>
-                  )}
-                  {data.contest.status === 'running' && (
-                    <button
-                      onClick={() => { if (window.confirm('지금 분기를 바로 닫고 다음 분기로 넘길까요? 아직 마감하지 않은 참가자는 페널티를 받습니다.')) runHost(hostForceNext, '다음 분기로 넘겼습니다.') }}
-                      disabled={hostBusy}
-                      className="h-11 px-5 border border-ink hover:bg-paper-deep disabled:opacity-50 text-sm font-bold transition-colors"
-                    >
-                      지금 다음 분기로 넘기기
-                    </button>
-                  )}
-                  {data.contest.status === 'finished' && <p className="m-0 text-sm text-mute">대회가 끝났습니다.</p>}
-                </div>
-                {hostMsg && (
-                  <p className={`m-0 text-sm ${hostMsg.error ? 'text-up' : 'text-ink'}`} role={hostMsg.error ? 'alert' : 'status'}>{hostMsg.text}</p>
-                )}
-              </div>
-            </details>
+
             <p className="m-0 text-xs text-mute leading-relaxed">
-              모든 참가자가 같은 분기를 함께 진행하고, 분기가 넘어갈 때마다 수익률이 바뀝니다. 최종 순위는 대회가 끝난 뒤의 순위입니다.
+              분기별 칸은 각 분기를 마감한 시점의 <b className="text-ink-soft">누적 수익률</b>(시작 자본 대비)입니다. 아직 지나지 않은 분기와 기록이 없는 분기는 –로 표시됩니다.
+              순위는 가장 최근 수익률 기준이고, 모든 참가자가 같은 분기를 함께 진행합니다.
             </p>
           </section>
         )}

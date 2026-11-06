@@ -23,7 +23,8 @@ export default function LobbyPage() {
   if (!contest) return null
 
   const starting = state !== null && state.status !== 'lobby'
-  const players = state?.players ?? []
+  // 서버 응답이 오기 전에도 내 이름은 바로 보인다
+  const players = state && state.players.length > 0 ? state.players : [userName]
 
   const leave = () => {
     if (window.confirm('대기실에서 나갈까요? 같은 기기에서 같은 이름으로 다시 들어올 수 있습니다.')) {
@@ -46,6 +47,13 @@ export default function LobbyPage() {
           <p className="m-0 mt-3 text-ink-soft text-sm">{userName}님, 참가가 완료됐습니다.</p>
         </div>
 
+        <div className="py-6 flex flex-col items-center gap-1 text-center border-b border-rule" aria-live="polite">
+          <span className="text-mute text-xs font-bold tracking-wide">지금 대기 중인 참가자</span>
+          <p className="m-0 font-serif font-black leading-none text-[clamp(44px,9vw,72px)] tabular-nums">
+            {players.length}<span className="text-2xl ml-1 font-bold">명</span>
+          </p>
+        </div>
+
         <div className="py-8 flex flex-col items-center gap-3 text-center border-b border-rule">
           <Loader2 size={28} className="animate-spin text-ink" />
           <p className="font-serif font-black text-xl m-0">
@@ -59,19 +67,15 @@ export default function LobbyPage() {
 
         <section className="pt-5 flex flex-col gap-3">
           <h2 className="font-serif font-black text-lg m-0 border-b-2 border-ink pb-2">
-            참가자 {players.length > 0 ? `${players.length}명` : ''}
+            참가자 {players.length}명
           </h2>
-          {players.length === 0 ? (
-            <p className="text-mute text-sm m-0">참가자 목록을 불러오는 중...</p>
-          ) : (
-            <ul className="m-0 p-0 list-none grid grid-cols-2 sm:grid-cols-3 gap-x-4">
-              {players.map(p => (
-                <li key={p} className={`py-2 border-b border-rule text-sm ${p === userName ? 'font-bold' : ''}`}>
-                  {p}{p === userName && <span className="ml-1.5 text-[11px] text-mute font-normal">나</span>}
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="m-0 p-0 list-none grid grid-cols-2 sm:grid-cols-3 gap-x-4">
+            {players.map(p => (
+              <li key={p} className={`py-2 border-b border-rule text-sm ${p === userName ? 'font-bold' : ''}`}>
+                {p}{p === userName && <span className="ml-1.5 text-[11px] text-mute font-normal">나</span>}
+              </li>
+            ))}
+          </ul>
         </section>
 
         <section className="pt-6 text-sm text-ink-soft leading-[1.9]">

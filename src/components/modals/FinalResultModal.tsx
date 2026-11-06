@@ -109,11 +109,8 @@ export default function FinalResultModal() {
           <button onClick={close} className="flex-1 h-11 border border-ink text-ink hover:bg-paper-deep text-sm font-medium transition-colors">
             내 기록 둘러보기
           </button>
-          {mode === 'contest' && code ? (
-            <button onClick={() => { close(); navigate(`/leaderboard?code=${encodeURIComponent(code)}`) }} className="flex-1 h-11 bg-ink hover:bg-ink-soft text-paper text-sm font-bold transition-colors">
-              순위표 보기
-            </button>
-          ) : (
+          {/* 대회의 순위표는 관리자만 볼 수 있다. 대회에서는 새 게임 버튼도 두지 않는다 (결과를 보고 다시 도전하는 것을 막는다) */}
+          {mode !== 'contest' && (
             <button onClick={newGame} className="flex-1 h-11 bg-up hover:brightness-110 text-white text-sm font-bold transition">
               새 게임 시작
             </button>

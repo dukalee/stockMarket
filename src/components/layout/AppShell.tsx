@@ -3,6 +3,7 @@ import NavBar from './NavBar'
 import QuarterResultModal from '../modals/QuarterResultModal'
 import TimeoutNoticeModal from '../modals/TimeoutNoticeModal'
 import FinalResultModal from '../modals/FinalResultModal'
+import QuarterBreakModal from '../modals/QuarterBreakModal'
 import RoundWaitBanner from './RoundWaitBanner'
 
 interface AppShellProps {
@@ -28,6 +29,7 @@ export default function AppShell({ children, isAdvancing, onAdvance, advanceErro
       <QuarterResultModal />
       <TimeoutNoticeModal />
       <FinalResultModal />
+      <QuarterBreakModal />
     </div>
   )
 }

@@ -55,6 +55,8 @@ export interface LeaderboardRow {
   finished: boolean
   updated_at: string
   round_done: number
+  quarter_returns: (number | null)[]   // 분기 마감 시점의 누적 수익률(%). 인덱스 0 = 1분기, 아직 없는 분기는 null
+  forfeited_quarter: number | null     // 대회를 포기한 분기 번호 (포기하지 않았으면 null). 총 자산·수익률은 포기한 시점의 값
 }
 
 export interface LeaderboardData {
@@ -87,6 +89,14 @@ const ERROR_MESSAGES: Record<string, string> = {
   already_started:     '이미 시작된 대회입니다.',
   no_players:          '참가자가 없어 시작할 수 없습니다.',
   not_running:         '진행 중인 대회가 아닙니다.',
+  wrong_admin_key:     '관리자 키가 올바르지 않습니다.',
+  admin_not_configured:'서버에 관리자 키가 등록되지 않았습니다. schema.sql 아래쪽의 "관리자 키 등록"을 먼저 실행해 주세요.',
+  invalid_settings:    '분기 수(1~12), 제한시간(30~3600초), 페널티(0~100%) 범위를 확인해 주세요.',
+  round_not_started:   '다음 분기가 아직 시작되지 않았습니다. 잠시 후 다시 시도해 주세요.',
+  invalid_code:        '대회 코드는 영문 대문자·숫자·-·_ 로 3~20자여야 합니다.',
+  code_taken:          '이미 사용 중인 대회 코드입니다. 다른 코드를 쓰거나 비워 두세요.',
+  not_finished:        '종료된 대회만 삭제할 수 있습니다.',
+  forfeited:           '이미 포기한 대회입니다. 다시 참가할 수 없습니다.',
 }
 
 export class ContestError extends Error {
@@ -193,6 +203,21 @@ export async function submitScore(p: {
   if (error) throw toError(error)
 }
 
+/**
+ * 진행 중인 대회를 포기한다. 포기한 시점의 총 자산이 최종 기록이 되고, 포기한 분기가 함께 남는다.
+ * 서버는 포기한 참가자를 "모든 분기를 마감한 사람"으로 세므로 다른 참가자는 기다리지 않는다. 한 번 포기하면 다시 들어올 수 없다.
+ */
+export async function forfeitContest(code: string, nickname: string, totalAssets: number): Promise<void> {
+  const client = requireClient()
+  const { error } = await client.rpc('forfeit_contest', {
+    p_code: code.trim(),
+    p_nickname: nickname.trim(),
+    p_token: getDeviceToken(),
+    p_total_assets: Math.round(totalAssets),
+  })
+  if (error) throw toError(error)
+}
+
 export async function fetchLeaderboard(code: string): Promise<LeaderboardData> {
   const client = requireClient()
   const { data, error } = await client.rpc('get_leaderboard', { p_code: code.trim() })
@@ -200,16 +225,77 @@ export async function fetchLeaderboard(code: string): Promise<LeaderboardData> {
   return data as LeaderboardData
 }
 
-/** 진행자: 대기실을 닫고 모두 동시에 1분기를 시작한다. */
-export async function hostStartContest(code: string, hostKey: string): Promise<void> {
+export interface CreatedContest {
+  code: string
+  title: string
+  hostKey: string
+  quarters: number
+  roundSeconds: number
+  penaltyRate: number
+}
+
+/** 관리자: 서버가 관리자 키를 확인한 뒤 대회를 만든다. code 를 비우면 서버가 자동으로 정한다. */
+export async function createContest(adminKey: string, opts: {
+  title: string
+  code: string
+  quarters: number
+  roundSeconds: number
+  penaltyRate: number
+}): Promise<CreatedContest> {
   const client = requireClient()
-  const { error } = await client.rpc('host_start_contest', { p_code: code.trim(), p_host_key: hostKey })
+  const { data, error } = await client.rpc('create_contest', {
+    p_admin_key: adminKey,
+    p_title: opts.title,
+    p_code: opts.code,
+    p_quarters: opts.quarters,
+    p_round_seconds: opts.roundSeconds,
+    p_penalty_rate: opts.penaltyRate,
+  })
+  if (error) throw toError(error)
+  return {
+    code: data.code,
+    title: data.title,
+    hostKey: data.host_key,
+    quarters: data.quarters,
+    roundSeconds: data.round_seconds,
+    penaltyRate: Number(data.penalty_rate),
+  }
+}
+
+export interface AdminContestRow {
+  code: string
+  title: string
+  status: ContestStatus
+  current_round: number
+  quarters: number
+  round_seconds: number
+  penalty_rate: number
+  is_open: boolean
+  created_at: string
+  players: number
+  done_players: number
+  player_names: string[]   // 대기실 참가자 이름 (대기 중일 때만, 들어온 순서)
+}
+
+/** 관리자: 만든 대회 목록 (관리자 키 확인). 키가 틀리면 wrong_admin_key 오류. */
+export async function adminListContests(adminKey: string): Promise<AdminContestRow[]> {
+  const client = requireClient()
+  const { data, error } = await client.rpc('admin_list_contests', { p_admin_key: adminKey })
+  if (error) throw toError(error)
+  return (data ?? []) as AdminContestRow[]
+}
+
+async function adminAction(fn: string, adminKey: string, code: string): Promise<void> {
+  const client = requireClient()
+  const { error } = await client.rpc(fn, { p_admin_key: adminKey, p_code: code })
   if (error) throw toError(error)
 }
 
-/** 진행자: 지금 라운드를 바로 닫고 다음 분기로 넘긴다. */
-export async function hostForceNext(code: string, hostKey: string): Promise<void> {
-  const client = requireClient()
-  const { error } = await client.rpc('host_force_next', { p_code: code.trim(), p_host_key: hostKey })
-  if (error) throw toError(error)
-}
+/** 관리자: 대기실을 닫고 모두 동시에 1분기를 시작한다. */
+export const adminStartContest = (adminKey: string, code: string) => adminAction('admin_start_contest', adminKey, code)
+/** 관리자: 지금 분기를 바로 넘긴다. */
+export const adminForceNext = (adminKey: string, code: string) => adminAction('admin_force_next', adminKey, code)
+/** 관리자: 새 참가를 막는다. */
+export const adminCloseContest = (adminKey: string, code: string) => adminAction('admin_close_contest', adminKey, code)
+/** 관리자: 종료된 대회를 참가자 기록과 함께 데이터베이스에서 삭제한다. (종료되지 않은 대회는 서버가 거부) */
+export const adminDeleteContest = (adminKey: string, code: string) => adminAction('admin_delete_contest', adminKey, code)

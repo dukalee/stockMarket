@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CircleAlert, Loader2 } from 'lucide-react'
+import { CircleAlert, Loader2, Lock } from 'lucide-react'
 import { useGameStore } from '../stores/gameStore'
 import { usePortfolioStore } from '../stores/portfolioStore'
 import { useMarketStore } from '../stores/marketStore'
 import { generateQuarterNews } from '../engines/staticNewsEngine'
 import { joinContest, ContestError } from '../services/contest'
+import { flushPendingForfeits, isForfeitPending } from '../services/pendingForfeit'
+import { usePendingForfeits } from '../hooks/usePendingForfeit'
 import { isContestServerConfigured } from '../lib/supabase'
 import { resetAllGameState } from '../services/gameReset'
 import { useContestRoundStore } from '../stores/contestRoundStore'
@@ -44,6 +46,8 @@ const RULES = [
 
 export default function SetupPage() {
   const navigate = useNavigate()
+  const adminAuth      = useGameStore(s => s.adminAuth)
+  const pendingForfeits = usePendingForfeits()
   const phase          = useGameStore(s => s.phase)
   const mode           = useGameStore(s => s.mode)
   const contestInfo    = useGameStore(s => s.contest)
@@ -98,6 +102,9 @@ export default function SetupPage() {
 
     try {
       if (isContest) {
+        // 연결이 안 돼서 보내지 못한 포기가 있으면 먼저 보내 본다. 포기한 대회에는 다시 들어올 수 없다.
+        await flushPendingForfeits()
+        if (isForfeitPending(code, userName)) throw new ContestError('forfeited', '이미 포기한 대회입니다. 다시 참가할 수 없습니다.')
         // 서버에서 코드 확인 — 유효하고 대기실이 열려 있을 때만 시드와 설정을 받는다
         const join = await joinContest(code, userName)
         if (join.finished) throw new ContestError('already_finished', '이미 이 대회를 마친 이름입니다.')
@@ -156,10 +163,26 @@ export default function SetupPage() {
 
       {/* 상단 발행 정보 */}
       <div className="flex justify-between items-center text-[13px] pb-2.5 border-b border-ink">
-        <span>제 1호</span>
+        <span className="flex items-center gap-4">
+          <span>제 1호</span>
+          <Link
+            to={adminAuth ? '/admin/contests' : '/admin'}
+            title="관리자 페이지"
+            className="text-mute hover:text-ink inline-flex items-center gap-1.5"
+          >
+            <Lock size={15} />
+            <span className="text-[13px] font-medium tracking-wide">Admin</span>
+          </Link>
+        </span>
         <span className="hidden sm:inline">{today}</span>
         <span>YEAR 1 Q1</span>
       </div>
+
+      {pendingForfeits.length > 0 && (
+        <p role="status" className="m-0 mt-2 text-center text-sm text-up">
+          대회 포기 기록을 서버에 보내는 중입니다 ({pendingForfeits.map(p => p.code).join(', ')}). 연결되면 자동으로 기록됩니다.
+        </p>
+      )}
 
       {/* 제호 */}
       <div className="flex items-center justify-center pt-4 pb-3 border-b-4 border-double border-ink">
@@ -169,7 +192,7 @@ export default function SetupPage() {
       </div>
 
       {/* 본문: 위 3단(게임 규칙, 투자자 등록서, 오늘의 주가) + 아래 2단(오늘의 기사, 오늘의 차트) */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)_minmax(0,320px)] pt-6">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(320px,1fr)_minmax(0,1.5fr)_minmax(320px,1fr)] pt-6">
 
         {/* 좌: 게임 규칙 */}
         <section className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 pt-8 lg:pt-0 lg:pr-7 lg:border-r border-ink flex flex-col">
@@ -188,9 +211,9 @@ export default function SetupPage() {
         </section>
 
         {/* 중앙: 투자자 등록서 (진행 중인 게임이 있으면 안내) */}
-        <section className="order-1 lg:order-none lg:col-start-2 lg:row-start-1 lg:px-9 w-full max-w-xl mx-auto">
+        <section className="order-1 lg:order-none lg:col-start-2 lg:row-start-1 lg:px-5 w-full max-w-xl mx-auto lg:max-w-none lg:mx-0 flex flex-col">
           {(inProgress || isFinished) ? (
-            <div className="border-2 border-dashed border-ink bg-paper-card px-6 sm:px-8 py-8 flex flex-col gap-4">
+            <div className="flex-1 bg-paper-card px-6 sm:px-8 py-8 flex flex-col gap-4">
               <span className="font-serif font-black text-[22px] border-b border-ink pb-2.5">
                 {isFinished ? '지난 게임이 끝났습니다' : '진행 중인 게임이 있습니다'}
               </span>
@@ -225,7 +248,7 @@ export default function SetupPage() {
               )}
             </div>
           ) : (
-            <div className="border-2 border-dashed border-ink bg-paper-card px-6 sm:px-8 pt-6 pb-8 flex flex-col gap-5">
+            <div className="flex-1 bg-paper-card px-6 sm:px-8 pt-6 pb-8 flex flex-col gap-5">
               <div className="flex justify-between items-baseline border-b border-ink pb-2.5">
                 <span className="font-serif font-black text-[22px]">투자자 등록서</span>
               </div>
@@ -315,9 +338,6 @@ export default function SetupPage() {
             </div>
           )}
 
-          <p className="text-center text-sm m-0 pt-4">
-            <Link to="/leaderboard" className="text-mute underline underline-offset-2 hover:text-ink">대회 순위표 보기</Link>
-          </p>
         </section>
 
         {/* 우: 오늘의 주가 (가격과 등락이 몇 초마다 바뀐다) */}
