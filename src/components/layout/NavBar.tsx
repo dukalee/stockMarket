@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Loader2, Lock, AlertTriangle, Clock, House, Flag } from 'lucide-react'
+import { Loader2, AlertTriangle, Clock, House, Flag } from 'lucide-react'
 import { useGameStore, quarterIndexOf } from '../../stores/gameStore'
 import { useRoundCountdown, formatCountdown } from '../../hooks/useRoundTimer'
 import { useContestRoundStore } from '../../stores/contestRoundStore'
@@ -22,7 +22,6 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
   const currentYear    = useGameStore(s => s.currentYear)
   const currentQuarter = useGameStore(s => s.currentQuarter)
   const phase          = useGameStore(s => s.phase)
-  const adminAuth      = useGameStore(s => s.adminAuth)
   const mode           = useGameStore(s => s.mode)
   const contest        = useGameStore(s => s.contest)
   const totalQuarters  = useGameStore(s => s.totalQuarters)
@@ -107,16 +106,6 @@ export default function NavBar({ isAdvancing = false, onAdvance, advanceError }:
             <NavLink to="/"     end className={tabClass}>홈</NavLink>
             <NavLink to="/trade"    className={tabClass}>거래</NavLink>
             <NavLink to="/news"     className={tabClass}>뉴스</NavLink>
-            {/* 관리자 버튼은 홈 화면(홈 탭)에서만 보인다. 거래·뉴스·관리자 화면 등 다른 화면에서는 보이지 않는다 */}
-            {!(mode === 'contest' && !finished) && pathname === '/' && (
-            <button
-                onClick={() => navigate(adminAuth ? '/admin/contests' : '/admin')}
-                className="flex items-center gap-1.5 px-1 py-1 text-sm text-mute hover:text-ink transition-colors"
-              >
-                <Lock size={13} />
-                관리자
-              </button>
-            )}
           </nav>
           )}
 

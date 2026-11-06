@@ -43,7 +43,7 @@
 | `src/pages/TradePage.tsx` | 종목 목록·차트·매수매도 화면 |
 | `src/pages/NewsPage.tsx` | AI Times 스타일 뉴스 목록 (white tone, NYT 레이아웃) |
 | `src/pages/NewsArticlePage.tsx` | 뉴스 기사 상세 페이지 (white tone) |
-| `src/pages/AdminLoginPage.tsx` | 관리자 로그인 = **관리자 키 확인**. 서버 연결 시 `admin_list_contests`로 서버가 검사하고, 맞으면 키를 이 탭 `sessionStorage`(`src/utils/adminKey.ts`)에 보관한 뒤 `/admin/contests`로 이동. 대회 서버가 없으면 로그인할 수 없다(관리자 화면은 대회 관리만 한다). 타이틀 화면(SetupPage) 왼쪽 위 "관리자" 링크와 NavBar "관리자" 버튼으로 진입 |
+| `src/pages/AdminLoginPage.tsx` | 관리자 로그인 = **관리자 키 확인**. 서버 연결 시 `admin_list_contests`로 서버가 검사하고, 맞으면 키를 이 탭 `sessionStorage`(`src/utils/adminKey.ts`)에 보관한 뒤 `/admin/contests`로 이동. 대회 서버가 없으면 로그인할 수 없다(관리자 화면은 대회 관리만 한다). 타이틀 화면(SetupPage) 왼쪽 위 "Admin" 링크로만 진입 (플레이 화면 NavBar에는 관리자 버튼이 없다) |
 | `src/pages/AdminContestsPage.tsx` | 관리자 대회 관리 (`/admin/contests`) — 관리자 키 확인(탭 `sessionStorage`에만 저장, 탭을 닫으면 사라짐) → 넓은 화면 3열 배치(**왼쪽 새 대회 만들기 · 가운데 진행 중인 대회 · 오른쪽 종료된 대회**, 좁은 화면은 진행 중 → 만들기 → 종료 순으로 세로) → **진행 중인 대회**(대기·진행 중, 5초마다 갱신, 참가자 이름·수·마감 인원) + 줄별 **대회 시작 / 다음 분기로(마지막은 "마지막 분기 마감") / 참가 닫기 / 순위표 보기** + **새 대회 만들기** 폼 + **종료된 대회**(결과 보기=최종 순위·자산·수익률 인라인, 순위표 페이지, **데이터베이스에서 삭제**) |
 | `src/components/layout/NavBar.tsx` | 내비게이션·"Continue →" 버튼·분기 인디케이터·advanceError 배너 |
 | `src/components/layout/AppShell.tsx` | 공통 레이아웃 래퍼. `advanceError` prop 전달 |
