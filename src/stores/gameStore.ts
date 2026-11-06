@@ -169,7 +169,8 @@ export const useGameStore = create<GameState>()(
       openFinalResult: () => set({ showFinalResult: true }),
       closeFinalResult: () => set({ showFinalResult: false }),
 
-      finishGame: () => set({ phase: 'finished', quarterStartedAt: null, showFinalResult: true }),
+      // 대회는 마지막 분기가 끝나도 결과를 자동으로 띄우지 않는다 — NavBar 의 "최종 결과 보기"를 눌러야 전체 순위 화면으로 간다
+      finishGame: () => set({ phase: 'finished', quarterStartedAt: null, showFinalResult: get().mode !== 'contest' }),
       resetGame: () => set({ ...initial, adminAuth: get().adminAuth }),
 
       isReady: () => get().phase !== 'setup',

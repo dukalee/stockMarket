@@ -5,7 +5,7 @@ import { fetchLeaderboard, type LeaderboardRow } from '../../services/contest'
 import { ROUND_BREAK_MS } from '../../utils/constants'
 
 const REFRESH_MS = 2_000   // 휴식 중에는 다른 참가자의 점수가 늦게 올라오므로 자주 새로 가져온다
-const TOP = 5
+const TOP = 3   // 분기 사이에는 1·2·3위만 보여 준다
 
 const fmtPct = (n: number | null) => (n === null ? '–' : `${n > 0 ? '+' : ''}${Number(n).toFixed(2)}%`)
 const pctColor = (n: number | null) => (n === null || n === 0 ? 'text-ink' : n > 0 ? 'text-up' : 'text-down')
@@ -31,6 +31,18 @@ export function RankBadge({ rank }: { rank: number }) {
  * 대회 모드: 분기가 끝나고 다음 분기가 시작되기 전 10초 동안 현재 순위를 보여 준다.
  * 휴식이 끝나면(서버가 정한 다음 분기 시작 시각) 저절로 닫히고, 그때부터 제한시간이 다시 줄기 시작한다.
  */
+/**
+ * 방금 끝난 분기(ended)까지의 변화를 반영한 수익률.
+ * 아직 그 분기 점수를 올리지 못한 참가자는 null — 지난 분기 값으로 순위에 끼지 않고 "집계 중"으로 따로 센다.
+ * 이미 포기한 참가자는 포기한 시점의 점수로 계속 순위에 남는다.
+ */
+function scoreAfter(p: LeaderboardRow, ended: number): number | null {
+  const v = p.quarter_returns?.[ended - 1]
+  if (v !== null && v !== undefined) return Number(v)
+  if (p.forfeited_quarter != null && p.forfeited_quarter <= ended && p.return_pct !== null) return Number(p.return_pct)
+  return null
+}
+
 export default function QuarterBreakModal() {
   const contest  = useGameStore(s => s.contest)
   const userName = useGameStore(s => s.userName)
@@ -61,14 +73,21 @@ export default function QuarterBreakModal() {
   const progress = Math.min(1, Math.max(0, br.remainingMs / ROUND_BREAK_MS))
   const minutes = Math.round((roundSecondsOf(contest) / 60) * 10) / 10
 
-  const list = players ?? []
-  const myIdx = list.findIndex(p => p.nickname === userName)
+  // 끝난 분기의 점수가 올라온 참가자만 그 수익률로 줄 세운다 (같으면 서버 순서 유지)
+  const scored = (players ?? [])
+    .map(p => ({ p, v: scoreAfter(p, br.endedQuarter) }))
+    .filter((x): x is { p: LeaderboardRow; v: number } => x.v !== null)
+    .sort((a, b) => b.v - a.v)
+  const list = scored
+  const pendingCount = (players ?? []).length - scored.length
+  const myIdx = list.findIndex(x => x.p.nickname === userName)
+  const myPending = (players ?? []).some(p => p.nickname === userName) && myIdx < 0
   const top = list.slice(0, TOP)
   const showMine = myIdx >= TOP
 
-  const row = (p: LeaderboardRow, rank: number) => {
+  const row = ({ p, v }: { p: LeaderboardRow; v: number }, rank: number) => {
     const mine = p.nickname === userName
-    const pct = p.return_pct
+    const pct = v
     return (
       <li key={p.nickname} className={`flex items-center gap-3 py-2.5 border-b border-rule ${mine ? 'bg-paper-deep px-2 -mx-2' : ''} ${rank === 1 ? 'border-b-2 border-ink' : ''}`}>
         <RankBadge rank={rank} />
@@ -83,11 +102,11 @@ export default function QuarterBreakModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/60 p-4" role="dialog" aria-modal="true" aria-label={`${br.endedQuarter}분기 종료, 현재 순위`}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/60 p-4" role="dialog" aria-modal="true" aria-label={`${br.endedQuarter}분기 종료, 순위`}>
       <div className="w-full max-w-md bg-paper-card border-4 border-double border-ink flex flex-col">
         <div className="px-6 pt-5 pb-4 border-b-2 border-ink">
-          <p className="m-0 text-xs text-mute">{contest.title || contest.code} · {br.endedQuarter}분기 종료</p>
-          <h2 className="font-serif font-black text-2xl m-0 mt-1">현재 순위</h2>
+          <p className="m-0 text-xs text-mute">{contest.title || contest.code} · {br.endedQuarter}분기까지의 변화를 반영한 순위</p>
+          <h2 className="font-serif font-black text-2xl m-0 mt-1">{br.endedQuarter}분기 결과 순위</h2>
         </div>
 
         {/* 남은 휴식 시간 — 이 줄이 다 줄어들면 팝업이 닫히고 다음 분기가 시작된다 */}
@@ -99,7 +118,7 @@ export default function QuarterBreakModal() {
           {players === null ? (
             <p className="m-0 text-sm text-mute py-6 text-center">순위를 불러오는 중…</p>
           ) : list.length === 0 ? (
-            <p className="m-0 text-sm text-mute py-6 text-center">아직 집계된 순위가 없습니다.</p>
+            <p className="m-0 text-sm text-mute py-6 text-center">순위를 집계하는 중입니다…</p>
           ) : (
             <>
               <ol className="m-0 p-0 list-none">
@@ -116,6 +135,8 @@ export default function QuarterBreakModal() {
                   내 순위 <b className="text-ink">{list.length}명 중 {myIdx + 1}위</b>
                 </p>
               )}
+              {myPending && <p className="m-0 text-sm text-ink-soft">내 점수를 집계하는 중입니다…</p>}
+              {pendingCount > 0 && <p className="m-0 text-xs text-mute">{pendingCount}명의 점수는 아직 집계 중입니다. 곧 순위가 바뀔 수 있습니다.</p>}
             </>
           )}
         </div>

@@ -51,6 +51,9 @@ export default function LeaderboardPage() {
 
   const all   = data?.players ?? []
   const total = data?.contest.quarters ?? 0
+  // 이번 분기 "마감"을 눌러 다른 참가자를 기다리는 중인가 (포기·완료한 참가자는 제외)
+  const closed = (p: LeaderboardRow) =>
+    data?.contest.status === 'running' && p.forfeited_quarter == null && !p.finished && p.round_done >= data.contest.current_round
   // 순위는 전체 목록에서의 위치다 (필터로 숨겨도 순위는 그대로)
   const rows: { p: LeaderboardRow; rank: number }[] = all
     .map((p, i) => ({ p, rank: i + 1 }))
@@ -153,6 +156,7 @@ export default function LeaderboardPage() {
                             {p.forfeited_quarter != null
                               ? <span className="font-bold text-up">{p.forfeited_quarter}분기 포기</span>
                               : p.finished ? <span className="font-bold text-ink">완료</span> : `${p.quarter} / ${total}분기`}
+                            {closed(p) && <span className="ml-2 font-bold text-ink border border-ink px-1.5 py-0.5 text-[11px]">[마감]</span>}
                           </td>
                           <td className={`${rowBg} ${edge} ${pad} pr-4 text-right tabular-nums whitespace-nowrap ${top ? 'font-bold' : ''}`}>{fmt(p.total_assets)}</td>
                           <td className={`${rowBg} ${edge} ${pad} pr-5 text-right font-bold tabular-nums whitespace-nowrap ${top ? 'text-base' : ''} ${pctColor(pct)}`}>
