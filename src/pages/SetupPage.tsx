@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CircleAlert, Loader2, Lock } from 'lucide-react'
+import { ChevronDown, CircleAlert, Loader2, Lock } from 'lucide-react'
 import { useGameStore } from '../stores/gameStore'
 import { usePortfolioStore } from '../stores/portfolioStore'
 import { useMarketStore } from '../stores/marketStore'
@@ -11,23 +11,10 @@ import { usePendingForfeits } from '../hooks/usePendingForfeit'
 import { isContestServerConfigured } from '../lib/supabase'
 import { resetAllGameState } from '../services/gameReset'
 import { useContestRoundStore } from '../stores/contestRoundStore'
-import { SIMULATION_QUARTERS } from '../utils/constants'
+import { SIMULATION_QUARTERS, STARTING_CASH } from '../utils/constants'
 import LivePriceBoard from '../components/title/LivePriceBoard'
 import NewsRotator from '../components/title/NewsRotator'
 import LiveChart from '../components/title/LiveChart'
-
-const CAPITAL_PRESETS = [
-  { label: '100만',  value: 1_000_000 },
-  { label: '500만',  value: 5_000_000 },
-  { label: '1000만', value: 10_000_000 },
-  { label: '5000만', value: 50_000_000 },
-]
-
-function formatCapital(n: number) {
-  if (n >= 100_000_000) return `₩${(n / 100_000_000).toFixed(0)}억`
-  if (n >= 10_000)      return `₩${(n / 10_000).toFixed(0)}만`
-  return `₩${n.toLocaleString('ko-KR')}`
-}
 
 const RULES = [
   {
@@ -73,21 +60,26 @@ export default function SetupPage() {
   }, [phase])
 
   const [userName,     setUserName]     = useState('')
+  const [kind,         setKind]         = useState<'practice' | 'contest'>('practice')   // 연습(시뮬레이션) / 대회
   const [contestCode,  setContestCode]  = useState('')
-  const [capitalInput, setCapitalInput] = useState('10000000')
   const [errors,       setErrors]       = useState<Record<string, string>>({})
   const [starting,     setStarting]     = useState(false)
+  const codeRef = useRef<HTMLInputElement>(null)
 
-  const capital   = Number(capitalInput.replace(/,/g, '')) || 0
   const code      = contestCode.trim()
-  const isContest = code.length > 0
+  const isContest = kind === 'contest'
+
+  // "대회"를 고르면 코드 입력줄이 펼쳐지고 바로 입력할 수 있게 포커스를 옮긴다
+  useEffect(() => {
+    if (isContest) codeRef.current?.focus({ preventScroll: true })
+  }, [isContest])
 
   const validate = () => {
     const e: Record<string, string> = {}
     if (!userName.trim()) e.userName = '이름을 입력해주세요.'
     else if (isContest && userName.trim().length > 12) e.userName = '대회에서는 이름을 12자 이하로 입력해주세요.'
-    if (!isContest && (!capital || capital < 100_000)) e.capital = '최소 ₩100,000 이상 입력해주세요.'
-    if (isContest && !isContestServerConfigured) e.contestCode = '대회 서버가 설정되지 않았습니다. 대회 코드를 지우고 시뮬레이션으로 시작해주세요.'
+    if (isContest && !code) e.contestCode = '대회 코드를 입력해주세요.'
+    else if (isContest && !isContestServerConfigured) e.contestCode = '대회 서버가 설정되지 않았습니다. 연습을 선택해 시작해주세요.'
     return e
   }
 
@@ -125,8 +117,8 @@ export default function SetupPage() {
       } else {
         // 시뮬레이션: 대회 코드 없이 무작위 조건으로 4분기
         const news = await generateQuarterNews(1, 1, useMarketStore.getState().stocks, setNewsLoadingProgress)
-        initPortfolio(capital)
-        startGame({ userName: userName.trim(), initialCapital: capital, mode: 'simulation' })
+        initPortfolio(STARTING_CASH)
+        startGame({ userName: userName.trim(), initialCapital: STARTING_CASH, mode: 'simulation' })
         setNews(news)
       }
     } catch (err) {
@@ -143,11 +135,6 @@ export default function SetupPage() {
     setStarting(false)
     setTimeout(() => setNewsLoadingProgress(0), 400)
     navigate('/')
-  }
-
-  const handleCapitalInput = (val: string) => {
-    setCapitalInput(val.replace(/[^0-9]/g, ''))
-    setErrors(prev => ({ ...prev, capital: '' }))
   }
 
   const startOver = () => {
@@ -197,14 +184,14 @@ export default function SetupPage() {
         {/* 좌: 게임 규칙 */}
         <section className="order-2 lg:order-none lg:col-start-1 lg:row-start-1 pt-8 lg:pt-0 lg:pr-7 lg:border-r border-ink flex flex-col">
           <h2 className="font-serif font-black text-xl m-0 border-b-2 border-ink pb-2">게임 규칙</h2>
-          <div className="flex flex-col gap-5 pt-4">
+          <div className="flex flex-col gap-4 pt-4">
             {RULES.map((r, i) => (
               <article
                 key={r.title}
-                className={`flex flex-col gap-2 ${i < RULES.length - 1 ? 'pb-5 border-b border-rule' : ''}`}
+                className={`flex flex-col gap-2 ${i < RULES.length - 1 ? 'pb-4 border-b border-rule' : ''}`}
               >
                 <h3 className="font-serif font-black text-xl leading-snug whitespace-nowrap m-0">{r.title}</h3>
-                <p className="text-[15px] leading-[1.8] text-ink-soft m-0">{r.body}</p>
+                <p className="text-[15px] leading-[1.7] text-ink-soft m-0">{r.body}</p>
               </article>
             ))}
           </div>
@@ -248,7 +235,7 @@ export default function SetupPage() {
               )}
             </div>
           ) : (
-            <div className="flex-1 bg-paper-card px-6 sm:px-8 pt-6 pb-8 flex flex-col gap-5">
+            <div className="flex-1 bg-paper-card px-6 sm:px-8 pt-5 pb-6 flex flex-col gap-4">
               <div className="flex justify-between items-baseline border-b border-ink pb-2.5">
                 <span className="font-serif font-black text-[22px]">투자자 등록서</span>
               </div>
@@ -263,56 +250,46 @@ export default function SetupPage() {
                 />
               </Field>
 
-              <Field label="대회 코드 (선택)" error={errors.contestCode}>
-                <input
-                  type="text"
-                  value={contestCode}
-                  onChange={e => { setContestCode(e.target.value.toUpperCase()); setErrors(p => ({ ...p, contestCode: '' })) }}
-                  placeholder="대회에 참가할 때만 입력"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  className={inputCls(!!errors.contestCode)}
-                />
+              <Field label="참가 방식">
+                <div className="relative">
+                  <select
+                    value={kind}
+                    onChange={e => { setKind(e.target.value as 'practice' | 'contest'); setErrors(p => ({ ...p, contestCode: '', general: '' })) }}
+                    aria-label="참가 방식"
+                    className="w-full h-10 appearance-none bg-transparent border border-ink pl-3 pr-10 text-[17px] text-ink focus:outline-none focus:border-2 cursor-pointer rounded-none"
+                  >
+                    <option value="practice">연습</option>
+                    <option value="contest">대회</option>
+                  </select>
+                  <ChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink" aria-hidden="true" />
+                </div>
                 <p className="m-0 text-xs text-mute leading-relaxed">
                   {isContest
                     ? '같은 코드의 참가자들이 같은 기사와 시세로 경쟁합니다. 분기마다 제한시간이 있고, 넘기면 현금과 주식 일부를 잃습니다.'
-                    : `비워 두면 ${SIMULATION_QUARTERS}분기 시뮬레이션으로 시작합니다.`}
+                    : `혼자 ${SIMULATION_QUARTERS}분기 동안 연습합니다. 제한시간이 없고 기록은 순위에 반영되지 않습니다.`}
                 </p>
               </Field>
 
-              <Field label="초기 자본" error={errors.capital}>
-                <div className={`flex gap-2 ${isContest ? 'opacity-40 pointer-events-none' : ''}`} aria-disabled={isContest}>
-                  {CAPITAL_PRESETS.map(p => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => { setCapitalInput(String(p.value)); setErrors(prev => ({ ...prev, capital: '' })) }}
-                      className={`flex-1 h-10 text-sm border border-ink transition-colors ${
-                        capital === p.value
-                          ? 'bg-ink text-paper font-bold'
-                          : 'bg-transparent text-ink hover:bg-paper-deep'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-                <div className={`flex items-center gap-2 border-b border-ink ${isContest ? 'opacity-40' : ''}`}>
-                  <span className="text-mute">₩</span>
+              {/* 연습일 때는 접혀 있다가 "대회"를 고르면 부드럽게 펼쳐진다. 접힌 동안에는 칸 사이 간격(gap)도 같이 없앤다 */}
+              <div
+                aria-hidden={!isContest}
+                className={`overflow-hidden transition-all duration-200 ease-out ${isContest ? 'max-h-32 mt-0 opacity-100' : 'max-h-0 -mt-4 opacity-0 pointer-events-none'}`}
+              >
+                <Field label="대회 코드" error={errors.contestCode}>
                   <input
+                    ref={codeRef}
                     type="text"
-                    inputMode="numeric"
-                    disabled={isContest}
-                    value={capitalInput ? Number(capitalInput).toLocaleString('ko-KR') : ''}
-                    onChange={e => handleCapitalInput(e.target.value)}
-                    placeholder="10,000,000"
-                    className="flex-1 min-w-0 h-11 bg-transparent text-[22px] font-bold text-right focus:outline-none"
+                    value={contestCode}
+                    onChange={e => { setContestCode(e.target.value.toUpperCase()); setErrors(p => ({ ...p, contestCode: '' })) }}
+                    placeholder="코드를 입력하세요"
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    disabled={!isContest}
+                    tabIndex={isContest ? 0 : -1}
+                    className={inputCls(!!errors.contestCode)}
                   />
-                </div>
-                {isContest
-                  ? <p className="m-0 text-xs text-mute">대회에서는 초기 자본이 대회 설정으로 정해집니다.</p>
-                  : capital >= 1_000_000 && <p className="text-mute text-xs m-0">{formatCapital(capital)}으로 시작</p>}
-              </Field>
+                </Field>
+              </div>
 
               {errors.general && (
                 <p className="flex items-start gap-1.5 text-up text-xs m-0 leading-relaxed" role="alert">
@@ -324,7 +301,7 @@ export default function SetupPage() {
               <button
                 onClick={handleStart}
                 disabled={starting}
-                className="h-[52px] bg-up hover:brightness-110 disabled:bg-rule disabled:text-mute text-white text-[17px] font-bold transition"
+                className="h-12 bg-up hover:brightness-110 disabled:bg-rule disabled:text-mute text-white text-[17px] font-bold transition"
               >
                 {starting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -346,12 +323,12 @@ export default function SetupPage() {
         </div>
 
         {/* 아래 왼쪽: 오늘의 기사 (장식용 기사 3개가 돌아간다) */}
-        <div className="order-4 lg:order-none lg:col-start-1 lg:col-span-2 lg:row-start-2 mt-8 pt-6 border-t border-ink lg:pr-9">
+        <div className="order-4 lg:order-none lg:col-start-1 lg:col-span-2 lg:row-start-2 mt-6 pt-5 border-t border-ink lg:pr-9">
           <NewsRotator />
         </div>
 
         {/* 아래 오른쪽: 오늘의 차트 (주가표에서 음영 표시된 종목) */}
-        <div className="order-5 lg:order-none lg:col-start-3 lg:row-start-2 mt-8 pt-6 border-t border-ink lg:pl-7 lg:border-l">
+        <div className="order-5 lg:order-none lg:col-start-3 lg:row-start-2 mt-6 pt-5 border-t border-ink lg:pl-7 lg:border-l">
           <LiveChart />
         </div>
       </div>
@@ -379,7 +356,7 @@ function Field({ label, error, children }: { label: string; error?: string; chil
 }
 
 function inputCls(hasError: boolean) {
-  return `w-full h-11 bg-transparent border-0 border-b px-1 text-[17px] text-ink placeholder:text-mute/60 focus:outline-none transition-colors ${
+  return `w-full h-10 bg-transparent border-0 border-b px-1 text-[17px] text-ink placeholder:text-mute/60 focus:outline-none transition-colors ${
     hasError ? 'border-up' : 'border-ink'
   }`
 }

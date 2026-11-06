@@ -62,7 +62,6 @@ export default function LivePriceBoard() {
           </div>
         )
       })}
-      <p className="m-0 pt-2 text-[11px] text-mute/70">음영 표시된 종목이 아래 차트에 나옵니다.</p>
     </section>
   )
 }

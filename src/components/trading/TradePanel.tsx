@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { usePortfolioStore, getSellableShares } from '../../stores/portfolioStore'
 import { useMarketStore } from '../../stores/marketStore'
 import { useGameStore } from '../../stores/gameStore'
+import { checkBuyKeepsRequirementReachable, REQUIRED_SECTORS, REQUIRED_STOCKS } from '../../utils/quarterRequirement'
 
 interface Props {
   type: 'buy' | 'sell'
@@ -54,13 +55,24 @@ export default function TradePanel({ type, stockId, price, disabled, embedded = 
   const total       = isValidQty ? qty * price : 0
   const cannotAfford = isBuy  && isValidQty && cash < total
   const notEnough    = !isBuy && isValidQty && sellable < qty
-  const isDisabled   = disabled || !isValidQty || cannotAfford || notEnough
+  // 이번 분기에 산 주식은 같은 분기에 팔 수 없다. 그래서 한 섹터에 돈을 다 쓰면 분기 진행 조건(서로 다른 2개 종목·2개 섹터)을
+  // 영영 채울 수 없게 될 수 있다 → 그런 매수는 막는다.
+  const check = isBuy
+    ? checkBuyKeepsRequirementReachable({ positions, transactions, stocks, qLabel }, cash, stockId, price, isValidQty ? qty : 1)
+    : null
+  const maxQty = isBuy && check ? Math.min(maxBuy, check.maxQty) : maxBuy        // "최대" 버튼은 조건을 지키는 한도까지만
+  const blockedByRule = isBuy && isValidQty && !cannotAfford && !!check && !check.ok
+  const isDisabled   = disabled || !isValidQty || cannotAfford || notEnough || blockedByRule
+
+  const sectorName   = stocks.find(s => s.id === stockId)?.sector ?? ''
+  const ruleLimit    = check && Number.isFinite(check.maxQty) ? Math.min(maxBuy, check.maxQty) : maxBuy
 
   const openConfirm  = () => { setError(null); setDone(false); setConfirm(true) }
   const closeConfirm = () => setConfirm(false)
 
   const handleExecute = () => {
     if (!isValidQty) return
+    if (blockedByRule) { setError('이 수량을 사면 분기 진행 조건을 채울 수 없게 됩니다. 수량을 줄여 주세요.'); return }
     const result = isBuy
       ? buyStock(stockId, qty, price, qLabel)
       : sellStock(stockId, qty, price, qLabel)
@@ -94,12 +106,13 @@ export default function TradePanel({ type, stockId, price, disabled, embedded = 
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between">
             <label className="text-mute text-xs">수량</label>
-            {isBuy && maxBuy > 0 && (
+            {isBuy && maxQty > 0 && (
               <button
-                onClick={() => setQtyStr(String(maxBuy))}
+                onClick={() => setQtyStr(String(maxQty))}
                 className="text-xs text-up underline underline-offset-2 transition-colors"
+                title={maxQty < maxBuy ? '분기 진행 조건을 채울 수 있도록 일부 현금을 남기는 한도입니다' : undefined}
               >
-                최대 {maxBuy.toLocaleString('ko-KR')}주
+                최대 {maxQty.toLocaleString('ko-KR')}주
               </button>
             )}
           </div>
@@ -168,6 +181,41 @@ export default function TradePanel({ type, stockId, price, disabled, embedded = 
           )}
         </div>
 
+        {/* 매수할 때 항상 보이는 안내: 이번 분기에 산 수량은 되팔 수 없다 */}
+        {isBuy && (
+          <p className="m-0 text-xs text-up leading-relaxed">
+            ※ 이번 분기에 매수한 수량은 같은 분기에 되팔 수 없습니다. 다음 분기부터 매도할 수 있습니다.
+          </p>
+        )}
+
+        {/* 경고: 이 수량을 사면 분기 진행 조건을 채울 수 없게 되는 경우 → 매수 불가 */}
+        {isBuy && blockedByRule && check && (
+          <div role="alert" className="border-2 border-up bg-paper p-3 flex flex-col gap-1.5">
+            <p className="m-0 text-sm font-bold text-up">⚠ 이 수량은 매수할 수 없습니다</p>
+            <p className="m-0 text-xs text-ink-soft leading-relaxed">
+              이번 분기에 산 주식은 되팔 수 없는데, 이 수량을 사면 남는 돈으로 <b>{sectorName} 외 다른 섹터의 종목</b>을 살 수 없어
+              분기 진행 조건(서로 다른 {REQUIRED_STOCKS}개 종목·{REQUIRED_SECTORS}개 섹터 매수)을 채울 수 없게 됩니다.
+            </p>
+            {check.reserveStock && (
+              <p className="m-0 text-xs text-ink-soft leading-relaxed">
+                다른 섹터에서 가장 싼 종목은 {check.reserveStock.name}({check.reserveStock.sector}) {fmt(check.reserve)}입니다. 그만큼은 남겨 두세요.
+              </p>
+            )}
+            <p className="m-0 text-xs font-bold text-ink">
+              {ruleLimit > 0
+                ? `이 종목은 최대 ${ruleLimit.toLocaleString('ko-KR')}주까지 살 수 있습니다.`
+                : '이 종목은 지금 살 수 없습니다. 먼저 다른 섹터의 종목을 사세요.'}
+            </p>
+          </div>
+        )}
+
+        {/* 안내: 아직 조건을 못 채웠지만 이 매수 후에도 채울 수 있는 경우 */}
+        {isBuy && !blockedByRule && check && !check.satisfied && isValidQty && check.reserve > 0 && (
+          <p className="m-0 text-xs text-mute leading-relaxed">
+            분기를 넘기려면 다른 섹터의 종목도 사야 합니다. 최소 {fmt(check.reserve)}({check.reserveStock?.name} 1주)는 남겨 두세요.
+          </p>
+        )}
+
         <button
           onClick={openConfirm}
           disabled={isDisabled}
@@ -222,6 +270,12 @@ export default function TradePanel({ type, stockId, price, disabled, embedded = 
                     <Row label="거래 후 잔금" value={fmt(cash + total)} valueClass="text-ink-soft" />
                   )}
                 </div>
+
+                {isBuy && (
+                  <p className="m-0 border border-up px-3 py-2 text-xs text-up leading-relaxed">
+                    이번 분기에 매수한 {qty.toLocaleString('ko-KR')}주는 <b>같은 분기에 되팔 수 없습니다.</b> 다음 분기부터 매도할 수 있습니다.
+                  </p>
+                )}
 
                 {error && <p className="text-up text-xs text-center">{error}</p>}
 

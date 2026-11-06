@@ -8,9 +8,8 @@ import { useGameStore } from '../stores/gameStore'
 import { useMarketStore } from '../stores/marketStore'
 import { usePortfolioStore } from '../stores/portfolioStore'
 import { useQuarterAdvance } from '../hooks/useQuarterAdvance'
+import { REQUIRED_SECTORS, REQUIRED_STOCKS } from '../utils/quarterRequirement'
 
-const REQUIRED_STOCKS  = 2
-const REQUIRED_SECTORS = 2
 
 type RightTab = 'history' | 'quarterly'
 

@@ -9,6 +9,7 @@ import { useContestRoundStore } from '../../stores/contestRoundStore'
 import { resetAllGameState } from '../../services/gameReset'
 import { computeTotalAssets } from '../../services/contestSync'
 import { forfeitWithFallback } from '../../services/pendingForfeit'
+import { REQUIRED_SECTORS, REQUIRED_STOCKS } from '../../utils/quarterRequirement'
 
 interface NavBarProps {
   isAdvancing?: boolean
@@ -16,8 +17,6 @@ interface NavBarProps {
   advanceError?: string | null
 }
 
-const REQUIRED_SECTORS = 2
-const REQUIRED_STOCKS  = 2
 
 export default function NavBar({ isAdvancing = false, onAdvance, advanceError }: NavBarProps) {
   const navigate       = useNavigate()
